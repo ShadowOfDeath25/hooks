@@ -6,8 +6,8 @@ export const endpoints = pgTable("endpoints", (t) => ({
     label: t.text().notNull(),
     url: t.text().notNull(),
     consumerId: t.integer("consumer_id").references(() => consumers.id),
-    signing_key: t.text().notNull(),
-    created_at: t.timestamp("created_at").notNull().defaultNow(),
+    signingKey: t.text("signing_key").notNull(),
+    createdAt: t.timestamp("created_at").notNull().defaultNow(),
 }), (table) => [
     index("consumer_id_fk_idx").on(table.consumerId)
 ])
