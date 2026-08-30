@@ -3,12 +3,8 @@ services:
     build: .
     ports:
       - "3000:3000"
-    env_file:
-      .env
-    volumes:
-      - .:/app
-      - /app/node_modules
-    command: npx nodemon --watch src index.js
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/hooks_db
     depends_on:
       db:
         condition: service_healthy
@@ -16,18 +12,29 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hooks_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+  mock-receiver:
+    build: .
+    command: npm run mock:dev
+    environment:
+      MOCK_PORT: "4000"
+      MOCK_TIMEOUT_MS: "${MOCK_TIMEOUT_MS:-10000}"
+    ports:
+      - "127.0.0.1:${MOCK_PORT:-4000}:4000"
+    volumes:
+      - .:/app
+      - /app/node_modules
 
 volumes:
   postgres_data:
