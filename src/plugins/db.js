@@ -1,5 +1,5 @@
 import fp from 'fastify-plugin'
-import { db } from '../db'
+import { db } from '../db/index.js'
 
 
 async function dbConnector(fastify) {
