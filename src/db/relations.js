@@ -18,6 +18,10 @@ export const relations = defineRelations(schema, (r) => ({
             from: r.endpoints.consumerId,
             to: r.consumers.id,
         }),
+        deliveries: r.many.deliveries({
+            from: r.endpoints.id,
+            to:r.deliveries.endpointId
+        })
     },
     events: {
         consumer: r.one.consumers({
@@ -32,6 +36,10 @@ export const relations = defineRelations(schema, (r) => ({
             to: r.events.id,
         }),
         attempts: r.many.attempts(),
+        endpoints: r.one.endpoints({
+            from: r.deliveries.endpointId,
+            to: r.endpoints.id
+        })
     },
     attempts: {
         delivery: r.one.deliveries({
