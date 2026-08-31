@@ -20,7 +20,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "api:generate-key": "node src/cli/createApiKey.js"
+    "api:generate-key": "docker compose exec app node src/cli/createApiKey.js"
   },
   "dependencies": {
     "@fastify/multipart": "^10.1.1",
