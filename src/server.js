@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
-
-import dbConnector from './plugins/db.js'
+import Autoload from '@fastify/autoload'
+import * as path from "node:path";
 
 
 const fastify = Fastify({
@@ -8,13 +8,17 @@ const fastify = Fastify({
 })
 
 
-fastify.register(dbConnector)
-
+fastify.register(Autoload, {
+    dir: path.join(__dirname, 'plugins')
+})
+fastify.register(Autoload, {
+    dir: path.join(__dirname, 'routes')
+})
 
 fastify.get('/', async function (request, reply) {
     reply.send({status: "Ok"})
 })
-fastify.listen({port: 3000, host: '0.0.0.0'}, function (err, address) {
+fastify.listen({port: 3000, host: '0.0.0.0'}, function (err) {
     if (err) {
         fastify.log.error(err)
         process.exit(1)
