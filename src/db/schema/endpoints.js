@@ -8,7 +8,7 @@ export const endpoints = pgTable("endpoints", (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
     label: t.varchar({length: 255}).notNull(),
     url: t.varchar({length: 255}).notNull().unique(),
-    isActive: t.boolean("isActive").notNull().default(true),
+    isActive: t.boolean("is_active").notNull().default(true),
     consumerId: t.integer("consumer_id").references(() => consumers.id),
     signingKey: bytea("signing_key").notNull(),
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
