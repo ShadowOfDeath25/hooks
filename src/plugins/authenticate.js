@@ -3,7 +3,6 @@ import {validateApiKey} from '../services/apiKeyService.js'
 import {UnauthorizedError} from '../errors/UnauthorizedError.js'
 
 
-
 /**
  * Fastify plugin that decorates the instance with an `authenticate` preHandler.
  * Automatically loaded by @fastify/autoload from the plugins directory.
@@ -17,7 +16,6 @@ async function authenticate(fastify) {
      * if the header is missing or the key is not found in the database.
      *
      * @param {import('fastify').FastifyRequest} request
-     * @param {import('fastify').FastifyReply} reply
      * @throws {UnauthorizedError}
      */
     fastify.decorate('authenticate', async function (request) {
