@@ -35,11 +35,11 @@ services:
     build: .
     command: npm run mock:dev
     environment:
-      MOCK_PORT: "4000"
+      MOCK_PORT: "${MOCK_PORT:-4000}"
       MOCK_TIMEOUT_MS: "${MOCK_TIMEOUT_MS:-10000}"
       MOCK_WEBHOOK_SECRET: "${MOCK_WEBHOOK_SECRET}"
     ports:
-      - "127.0.0.1:${MOCK_PORT:-4000}:4000"
+      - "127.0.0.1:${MOCK_PORT:-4000}:${MOCK_PORT:-4000}"
     volumes:
       - .:/app
       - /app/node_modules
