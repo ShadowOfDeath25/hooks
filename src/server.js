@@ -3,7 +3,7 @@ import Fastify from 'fastify'
 import dbConnector from './plugins/db.js'
 
 
-import endpointRoutes from './routes/endpoints.js'
+import endpointRoutes from './routes/endpoints/index.js'
 
 
 const fastify = Fastify({
