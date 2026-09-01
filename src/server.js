@@ -4,7 +4,7 @@ import { dummyQueue } from './worker.js';
 
 import dbConnector from './plugins/db.js'
 import errorHandlerPlugin from './plugins/errorHandler.js'
-import endpointRoutes from './routes/endpoints/index.js'
+import endpointRoutes from './routes/endpoints/endpoints.routes.js'
 
 const fastify = Fastify({
     logger: true

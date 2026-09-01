@@ -1,4 +1,4 @@
-import { createEndpointService, getConsumerEndpointsService, updateEndpointService, deleteEndpointService } from './services.js';
+import { createEndpointService, getConsumerEndpointsService, updateEndpointService, deleteEndpointService } from './endpoints.services.js';
 
 export async function createEndpointHandler(request, reply) {
     const { label, url, consumerId } = request.body;
