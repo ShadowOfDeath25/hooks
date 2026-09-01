@@ -2,13 +2,18 @@ import Fastify from 'fastify';
 import './worker.js'; // Start the worker
 import { dummyQueue } from './worker.js';
 
+import dbConnector from './plugins/db.js'
+
+
 const fastify = Fastify({
     logger: true
 });
 
-fastify.get('/', function (request, reply) {
-    reply.send({ hello: 'world' });
-});
+fastify.register(dbConnector)
+
+fastify.get('/', async function (request, reply) {
+    reply.send({status: "Ok"})
+})
 
 // Endpoint to test the queue with error handling
 fastify.post('/test-job', async function (request, reply) {
