@@ -4,9 +4,9 @@ import {endpoints} from "./schema/endpoints.js";
 import {events} from "./schema/events.js";
 import {deliveries} from "./schema/deliveries.js";
 import {attempts} from "./schema/attempts.js";
-import {api_keys} from "./schema/api_keys.js";
+import {apiKeys} from "./schema/apiKeys.js";
 
-const schema = {consumers, endpoints, events, deliveries, attempts, api_keys};
+const schema = {consumers, endpoints, events, deliveries, attempts, api_keys: apiKeys};
 
 export const relations = defineRelations(schema, (r) => ({
     consumers: {

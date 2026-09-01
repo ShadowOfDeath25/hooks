@@ -1,21 +1,23 @@
-import Fastify from 'fastify';
+import Fastify from 'fastify'
+import Autoload from '@fastify/autoload'
+import * as path from "node:path";
+import {fileURLToPath} from "node:url";
 import './worker.js'; // Start the worker
 import { dummyQueue } from './worker.js';
 
-import dbConnector from './plugins/db.js'
-import errorHandlerPlugin from './plugins/errorHandler.js'
-import endpointRoutes from './routes/endpoints/endpoints.routes.js'
-
 const fastify = Fastify({
     logger: true
-});
+})
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Register Core Plugins
-fastify.register(errorHandlerPlugin)
-fastify.register(dbConnector)
+fastify.register(Autoload, {
+    dir: path.join(__dirname, 'plugins')
+})
+fastify.register(Autoload, {
+    dir: path.join(__dirname, 'routes'),
+    matchFilter: /.*\.routes\.js$/ // Only autoload files ending in .routes.js
+})
 
-// Register our new endpoint routes under the /endpoints prefix
-fastify.register(endpointRoutes, { prefix: '/endpoints' })
 fastify.get('/', async function (request, reply) {
     reply.send({status: "Ok"})
 })
