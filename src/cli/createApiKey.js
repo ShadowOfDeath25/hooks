@@ -1,4 +1,4 @@
-import {generateApiKey} from "../services/apiKeyService.js";
+import {generateApiKey} from "../routes/api-keys/apiKeys.service.js";
 import {ApiKeyLimitError} from "../errors/ApiLimitKeyError.js";
 import chalk from "chalk";
 

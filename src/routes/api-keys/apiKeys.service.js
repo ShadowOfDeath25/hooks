@@ -1,10 +1,9 @@
 import crypto from 'node:crypto';
 import 'dotenv/config'
-import {db} from '../db/index.js'
-import {apiKeys} from "../db/schema/apiKeys.js";
+import {db} from '../../db/index.js'
+import {apiKeys} from "../../db/schema/apiKeys.js";
 import {count, eq} from "drizzle-orm";
-import {ApiKeyLimitError} from "../errors/ApiLimitKeyError.js";
-
+import {ApiKeyLimitError} from "../../errors/ApiLimitKeyError.js";
 
 
 /**
@@ -13,7 +12,8 @@ import {ApiKeyLimitError} from "../errors/ApiLimitKeyError.js";
  * @returns {{ fullKey: string, keyHash: string }} An object containing the full API key and its hash.
  */
 export const generateApiKey = async (label) => {
-    const {API_KEY_PREFIX, MAX_API_KEYS} = process.env;
+    const {API_KEY_PREFIX, MAX_API_KEYS = "5"} = process.env;
+
     const [{value: existingCount}] = await db
         .select({value: count()})
         .from(apiKeys)
@@ -33,11 +33,9 @@ export const generateApiKey = async (label) => {
 
     const keyHash = hashApiKey(fullKey);
 
-    try {
-        await db.insert(apiKeys).values({hash: keyHash, label});
-    } catch (e) {
-        console.error(e);
-    }
+
+    await db.insert(apiKeys).values({hash: keyHash, label});
+
 
     return {
         fullKey,

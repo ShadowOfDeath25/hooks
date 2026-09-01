@@ -1,4 +1,4 @@
-import { generateApiKey } from '../../services/apiKeyService.js'
+import { generateApiKey } from './apiKeys.service.js'
 import { apiKeys } from '../../db/schema/apiKeys.js'
 import { eq } from 'drizzle-orm'
 

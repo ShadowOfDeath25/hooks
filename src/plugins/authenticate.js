@@ -1,5 +1,5 @@
 import fp from 'fastify-plugin'
-import {validateApiKey} from '../services/apiKeyService.js'
+import {validateApiKey} from '../routes/api-keys/apiKeys.service.js'
 import {UnauthorizedError} from '../errors/UnauthorizedError.js'
 
 
