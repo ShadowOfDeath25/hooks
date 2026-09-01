@@ -43,7 +43,8 @@ export const listEndpointsSchema = {
         properties: {
             consumerId: { type: 'integer', minimum: 1 },
             limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
-            offset: { type: 'integer', minimum: 0, default: 0 }
+            offset: { type: 'integer', minimum: 0, default: 0 },
+            includeInactive: { type: 'boolean', default: false }
         }
     },
     // Response schema strictly whitelists safe fields (excludes signingKey)
@@ -109,6 +110,43 @@ export const updateEndpointSchema = {
         }
     },
     // Strict response whitelist to prevent data leaks (like signingKey)
+    response: {
+        200: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                id: { type: 'integer' },
+                label: { type: 'string' },
+                url: { type: 'string' },
+                consumerId: { type: 'integer' },
+                isActive: { type: 'boolean' },
+                createdAt: { type: 'string', format: 'date-time' },
+                updatedAt: { type: 'string', format: 'date-time', nullable: true }
+            }
+        }
+    }
+};
+
+export const deleteEndpointSchema = {
+    // Validate the URL parameter
+    params: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: {
+            id: { type: 'integer', minimum: 1 }
+        }
+    },
+    // Require the consumerId in the query to prove ownership
+    querystring: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['consumerId'],
+        properties: {
+            consumerId: { type: 'integer', minimum: 1 }
+        }
+    },
+    // Return the soft-deleted object to confirm the new isActive state
     response: {
         200: {
             type: 'object',

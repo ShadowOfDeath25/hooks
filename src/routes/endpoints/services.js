@@ -32,7 +32,13 @@ export async function createEndpointService(db, label, url, consumerId) {
     return { newEndpoint, plainTextSecret };
 }
 
-export async function getConsumerEndpointsService(db, consumerId, limit, offset) {
+export async function getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive = false) {
+    // Construct the where clause based on the includeInactive flag
+    let filterCondition = eq(endpoints.consumerId, consumerId);
+    if (!includeInactive) {
+        filterCondition = and(filterCondition, eq(endpoints.isActive, true));
+    }
+
     // Execute both the data query and the count query in parallel for max performance
     const [consumerEndpoints, [{ total }]] = await Promise.all([
         db.select({
@@ -45,14 +51,14 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset)
             updatedAt: endpoints.updatedAt
         })
         .from(endpoints)
-        .where(eq(endpoints.consumerId, consumerId))
+        .where(filterCondition)
         .orderBy(endpoints.createdAt)
         .limit(limit)
         .offset(offset),
         
         db.select({ total: sql`count(*)`.mapWith(Number) })
           .from(endpoints)
-          .where(eq(endpoints.consumerId, consumerId))
+          .where(filterCondition)
     ]);
 
     return { data: consumerEndpoints, total };
@@ -93,4 +99,34 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
     }
 
     return updatedEndpoint;
+}
+
+export async function deleteEndpointService(db, id, consumerId) {
+    // Perform a soft-delete by updating isActive to false
+    const [deletedEndpoint] = await db.update(endpoints)
+        .set({ 
+            isActive: false, 
+            updatedAt: new Date() 
+        })
+        .where(
+            and(
+                eq(endpoints.id, id),
+                eq(endpoints.consumerId, consumerId) // Ensure they own this endpoint!
+            )
+        )
+        .returning({
+            id: endpoints.id,
+            label: endpoints.label,
+            url: endpoints.url,
+            consumerId: endpoints.consumerId,
+            isActive: endpoints.isActive,
+            createdAt: endpoints.createdAt,
+            updatedAt: endpoints.updatedAt
+        });
+
+    if (!deletedEndpoint) {
+        throw new NotFoundError('Endpoint not found or you do not have permission to delete it.');
+    }
+
+    return deletedEndpoint;
 }

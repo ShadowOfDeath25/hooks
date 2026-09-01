@@ -1,4 +1,4 @@
-import { createEndpointService, getConsumerEndpointsService, updateEndpointService } from './services.js';
+import { createEndpointService, getConsumerEndpointsService, updateEndpointService, deleteEndpointService } from './services.js';
 
 export async function createEndpointHandler(request, reply) {
     const { label, url, consumerId } = request.body;
@@ -15,10 +15,10 @@ export async function createEndpointHandler(request, reply) {
 }
 
 export async function listEndpointsHandler(request, reply) {
-    const { consumerId, limit, offset } = request.query;
+    const { consumerId, limit, offset, includeInactive } = request.query;
     const db = request.server.db; 
 
-    const consumerEndpoints = await getConsumerEndpointsService(db, consumerId, limit, offset);
+    const consumerEndpoints = await getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive);
     return reply.code(200).send(consumerEndpoints);
 }
 
@@ -32,4 +32,16 @@ export async function updateEndpointHandler(request, reply) {
     const updatedEndpoint = await updateEndpointService(db, id, consumerId, updateData);
     
     return reply.code(200).send(updatedEndpoint);
+}
+
+export async function deleteEndpointHandler(request, reply) {
+    const { id } = request.params;
+    const { consumerId } = request.query;
+    const db = request.server.db;
+
+    // Service throws NotFoundError if it doesn't exist
+    const deletedEndpoint = await deleteEndpointService(db, id, consumerId);
+    
+    // Return 200 OK with the updated object so they can confirm isActive is false
+    return reply.code(200).send(deletedEndpoint);
 }
