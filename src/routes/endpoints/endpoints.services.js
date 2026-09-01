@@ -1,7 +1,7 @@
 import { endpoints } from '../../db/schema/endpoints.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
 import { eq, and, sql } from 'drizzle-orm';
-import { NotFoundError } from '../../errors/classes.js';
+import { NotFoundError } from '../../errors/NotFoundError.js';
 
 export async function createEndpointService(db, label, url, consumerId) {
 

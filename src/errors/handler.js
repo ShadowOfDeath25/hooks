@@ -1,4 +1,4 @@
-import { AppError } from './classes.js';
+import { AppError } from './AppError.js';
 
 export function globalErrorHandler(error, request, reply) {
     // 1. Handle Custom Domain Errors (e.g., NotFoundError thrown from services)
