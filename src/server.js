@@ -3,20 +3,15 @@ import './worker.js'; // Start the worker
 import { dummyQueue } from './worker.js';
 
 import dbConnector from './plugins/db.js'
-
-
+import errorHandlerPlugin from './plugins/errorHandler.js'
 import endpointRoutes from './routes/endpoints/index.js'
-
-
-import { globalErrorHandler } from './errors/handler.js';
 
 const fastify = Fastify({
     logger: true
 });
 
-// Global Error Handler: Consolidates all domain, validation, database, and system errors
-fastify.setErrorHandler(globalErrorHandler);
-
+// Register Core Plugins
+fastify.register(errorHandlerPlugin)
 fastify.register(dbConnector)
 
 // Register our new endpoint routes under the /endpoints prefix
