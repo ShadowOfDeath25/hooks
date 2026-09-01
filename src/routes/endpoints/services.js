@@ -1,9 +1,10 @@
 import { endpoints } from '../../db/schema/endpoints.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
-import { eq } from 'drizzle-orm';
-import { db } from '../../db/index.js';
+import { eq, and, sql } from 'drizzle-orm';
+import { NotFoundError } from '../../errors/classes.js';
 
-export async function createEndpointService(label, url, consumerId) {
+export async function createEndpointService(db, label, url, consumerId) {
+
     // 1. Generate the plain text secret for the user
     const plainTextSecret = generateWebhookSecret();
     
@@ -24,27 +25,72 @@ export async function createEndpointService(label, url, consumerId) {
         url: endpoints.url,
         consumerId: endpoints.consumerId,
         isActive: endpoints.isActive,
-        createdAt: endpoints.createdAt
+        createdAt: endpoints.createdAt,
+        updatedAt: endpoints.updatedAt
     });
 
     return { newEndpoint, plainTextSecret };
 }
 
-export async function getConsumerEndpointsService(consumerId, limit, offset) {
-    // Using Drizzle's selection syntax to only pull the exact columns we need.
-    const consumerEndpoints = await db.select({
-        id: endpoints.id,
-        label: endpoints.label,
-        url: endpoints.url,
-        consumerId: endpoints.consumerId,
-        isActive: endpoints.isActive,
-        createdAt: endpoints.createdAt
-    })
-    .from(endpoints)
-    .where(eq(endpoints.consumerId, consumerId))
-    .orderBy(endpoints.createdAt)
-    .limit(limit)
-    .offset(offset);
+export async function getConsumerEndpointsService(db, consumerId, limit, offset) {
+    // Execute both the data query and the count query in parallel for max performance
+    const [consumerEndpoints, [{ total }]] = await Promise.all([
+        db.select({
+            id: endpoints.id,
+            label: endpoints.label,
+            url: endpoints.url,
+            consumerId: endpoints.consumerId,
+            isActive: endpoints.isActive,
+            createdAt: endpoints.createdAt,
+            updatedAt: endpoints.updatedAt
+        })
+        .from(endpoints)
+        .where(eq(endpoints.consumerId, consumerId))
+        .orderBy(endpoints.createdAt)
+        .limit(limit)
+        .offset(offset),
+        
+        db.select({ total: sql`count(*)`.mapWith(Number) })
+          .from(endpoints)
+          .where(eq(endpoints.consumerId, consumerId))
+    ]);
 
-    return consumerEndpoints;
+    return { data: consumerEndpoints, total };
+}
+
+export async function updateEndpointService(db, id, consumerId, updateData) {
+    // Explicitly whitelist fields to prevent Mass Assignment vulnerabilities.
+    // Even though AJV schemas strip unknown fields, this guarantees that malicious
+    // keys (like `consumerId` or `signingKey`) can never be injected into the DB update.
+    const safeUpdateData = {};
+    if (updateData.label !== undefined) safeUpdateData.label = updateData.label;
+    if (updateData.url !== undefined) safeUpdateData.url = updateData.url;
+    if (updateData.isActive !== undefined) safeUpdateData.isActive = updateData.isActive;
+    
+    // Always update the timestamp when modifying the record
+    safeUpdateData.updatedAt = new Date();
+
+    const [updatedEndpoint] = await db.update(endpoints)
+        .set(safeUpdateData)
+        .where(
+            and(
+                eq(endpoints.id, id),
+                eq(endpoints.consumerId, consumerId) // Ensure they actually own this endpoint!
+            )
+        )
+        .returning({
+            id: endpoints.id,
+            label: endpoints.label,
+            url: endpoints.url,
+            consumerId: endpoints.consumerId,
+            isActive: endpoints.isActive,
+            createdAt: endpoints.createdAt,
+            updatedAt: endpoints.updatedAt
+        });
+
+    if (!updatedEndpoint) {
+        throw new NotFoundError('Endpoint not found or you do not have permission to modify it.');
+    }
+
+    return updatedEndpoint;
 }

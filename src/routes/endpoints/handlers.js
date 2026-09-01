@@ -1,39 +1,35 @@
-import { createEndpointService, getConsumerEndpointsService } from './services.js';
+import { createEndpointService, getConsumerEndpointsService, updateEndpointService } from './services.js';
 
 export async function createEndpointHandler(request, reply) {
     const { label, url, consumerId } = request.body;
+    const db = request.server.db; 
 
-    try {
-        const { newEndpoint, plainTextSecret } = await createEndpointService(label, url, consumerId);
+    const { newEndpoint, plainTextSecret } = await createEndpointService(db, label, url, consumerId);
 
-        // 4. Return the record PLUS the plain text secret exactly once.
-        // Notice we do not return the `signingKey` buffer to the user.
-        return reply.code(201).send({
-            ...newEndpoint,
-            secret: plainTextSecret
-        });
-        
-    } catch (error) {
-        request.log.error(error);
-        
-        // Handle specific database errors (like Foreign Key constraints failing)
-        if (error.code === '23503') { // Postgres foreign_key_violation code
-            return reply.code(400).send({ error: 'Invalid consumerId. Consumer does not exist.' });
-        }
-        
-        return reply.code(500).send({ error: 'Internal Server Error while creating endpoint.' });
-    }
+    // 4. Return the record PLUS the plain text secret exactly once.
+    // Notice we do not return the `signingKey` buffer to the user.
+    return reply.code(201).send({
+        ...newEndpoint,
+        secret: plainTextSecret
+    });
 }
 
 export async function listEndpointsHandler(request, reply) {
     const { consumerId, limit, offset } = request.query;
+    const db = request.server.db; 
 
-    try {
-        const consumerEndpoints = await getConsumerEndpointsService(consumerId, limit, offset);
-        return reply.code(200).send(consumerEndpoints);
-        
-    } catch (error) {
-        request.log.error(error);
-        return reply.code(500).send({ error: 'Internal Server Error while fetching endpoints.' });
-    }
+    const consumerEndpoints = await getConsumerEndpointsService(db, consumerId, limit, offset);
+    return reply.code(200).send(consumerEndpoints);
+}
+
+export async function updateEndpointHandler(request, reply) {
+    const { id } = request.params;
+    const { consumerId } = request.query;
+    const updateData = request.body;
+    const db = request.server.db; 
+
+    // Service throws NotFoundError if the endpoint doesn't exist
+    const updatedEndpoint = await updateEndpointService(db, id, consumerId, updateData);
+    
+    return reply.code(200).send(updatedEndpoint);
 }

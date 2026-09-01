@@ -8,21 +8,14 @@ import dbConnector from './plugins/db.js'
 import endpointRoutes from './routes/endpoints/index.js'
 
 
+import { globalErrorHandler } from './errors/handler.js';
+
 const fastify = Fastify({
     logger: true
 });
 
-// Global Error Handler: Prevents unhandled crypto/system errors from leaking sensitive stack traces to clients.
-fastify.setErrorHandler((error, request, reply) => {
-    // Fastify's AJV schema validation throws 400 errors. We want to let those pass through normally.
-    if (error.statusCode >= 400 && error.statusCode < 500) {
-        return reply.send(error);
-    }
-    
-    // For 500 errors (like crypto failing), log the real error but send a safe, generic message.
-    request.log.error(error);
-    reply.code(500).send({ error: 'Internal Server Error' });
-});
+// Global Error Handler: Consolidates all domain, validation, database, and system errors
+fastify.setErrorHandler(globalErrorHandler);
 
 fastify.register(dbConnector)
 
