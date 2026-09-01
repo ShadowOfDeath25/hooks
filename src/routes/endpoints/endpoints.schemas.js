@@ -163,3 +163,13 @@ export const deleteEndpointSchema = {
         }
     }
 };
+
+export const putEndpointSchema = {
+    ...updateEndpointSchema,
+    body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['label', 'url', 'isActive'],
+        properties: updateEndpointSchema.body.properties
+    }
+};
