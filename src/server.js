@@ -1,15 +1,23 @@
-import Fastify from 'fastify';
+import Fastify from 'fastify'
+import Autoload from '@fastify/autoload'
+import * as path from "node:path";
+import {fileURLToPath} from "node:url";
 import './worker.js'; // Start the worker
 import { dummyQueue } from './worker.js';
 
-import dbConnector from './plugins/db.js'
-
-
 const fastify = Fastify({
     logger: true
-});
+})
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-fastify.register(dbConnector)
+fastify.register(Autoload, {
+    dir: path.join(__dirname, 'plugins')
+})
+fastify.register(Autoload, {
+    dir: path.join(__dirname, 'routes')
+})
+
+
 
 fastify.get('/', async function (request, reply) {
     reply.send({status: "Ok"})
