@@ -18,6 +18,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
     "mock": "node mock/mock-receiver.js",
+    "test:mock": "node --test test/mock-receiver.test.js",
     "mock:dev": "nodemon mock/mock-receiver.js",
     "dev": "nodemon index.js",
     "db:generate": "drizzle-kit generate",
