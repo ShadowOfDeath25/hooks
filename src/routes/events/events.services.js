@@ -57,9 +57,9 @@ export async function createEvent(request, reply) {
 
     for (const endpoint of consumerEndpoints) {
         let job = await dummyQueue.add('dummyQueue', {
-            event_id: eventId.toString(),
+            event_id: eventId,
             payload: eventData,
-            endpoint_id: endpoint.id.toString()
+            endpoint_id: endpoint.id
         });
         if (!job) {
             throw new QueueError(`Failed to enqueue job for event ${eventId} and endpoint ${endpoint.id}`);
