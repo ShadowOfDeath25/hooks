@@ -2,7 +2,7 @@ const eventPayloadSchema = {
     type: 'object',
     required: ['timestamp', 'type', 'data'],
     properties: {
-        timestamp: { type: 'string', format: 'date-time' },
+        timestamp: { type: 'integer', minimum: 0, format: 'unix-timestamp' },
         type: { type: 'string' },
         data: { type: 'object' }
     }
