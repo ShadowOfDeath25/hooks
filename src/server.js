@@ -1,14 +1,13 @@
-import Fastify from 'fastify';
+import Fastify from 'fastify'
+import Autoload from '@fastify/autoload'
 import * as path from "node:path";
 import {fileURLToPath} from "node:url";
 import './worker.js'; // Start the worker
 import { dummyQueue } from './worker.js';
-import Autoload from '@fastify/autoload';
 
 const fastify = Fastify({
     logger: true
-});
-
+})
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 fastify.register(Autoload, {
