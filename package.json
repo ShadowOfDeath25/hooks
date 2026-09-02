@@ -21,7 +21,6 @@
     "test:mock": "node --test test/mock-receiver.test.js",
     "test:delivery": "node --test test/delivery.test.js",
     "mock:dev": "nodemon mock/mock-receiver.js",
-    "dev": "nodemon index.js",
     "dev": "nodemon -L index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
