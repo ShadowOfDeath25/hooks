@@ -5,7 +5,7 @@ import { endpoints } from './schema/endpoints.js';
 import { events } from './schema/events.js';
 import { deliveries } from './schema/deliveries.js';
 import { attempts } from './schema/attempts.js';
-import { api_keys } from './schema/api_keys.js';
+import { apiKeys } from './schema/apiKeys.js';
 import crypto from 'crypto';
 
 async function clear() {
@@ -15,7 +15,7 @@ async function clear() {
     await db.delete(events);
     await db.delete(endpoints);
     await db.delete(consumers);
-    await db.delete(api_keys);
+    await db.delete(apiKeys);
     console.log('Cleared existing data');
 }
 
@@ -23,7 +23,7 @@ async function seed() {
     await clear();
 
     // --- api_keys (standalone) ---
-    const insertedApiKeys = await db.insert(api_keys).values([
+    const insertedApiKeys = await db.insert(apiKeys).values([
         { label: 'local-dev-key', hash: crypto.createHash('sha256').update('dev-secret-1').digest('hex') },
         { label: 'ci-test-key', hash: crypto.createHash('sha256').update('dev-secret-2').digest('hex') },
     ]).returning();
@@ -39,11 +39,12 @@ async function seed() {
     const [acme, globex, initech] = insertedConsumers;
 
     // --- endpoints (2 per consumer) ---
+    // signingKey is bytea + notNull, so every row needs a real Buffer value.
     const insertedEndpoints = await db.insert(endpoints).values([
-        { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id },
-        { label: 'Acme backup', url: 'https://acme.example.com/webhooks/backup', consumerId: acme.id},
-        { label: 'Globex main', url: 'https://hooks.globex.example.com/inbound', consumerId: globex.id },
-        { label: 'Initech main', url: 'https://api.initech.example.com/hooks/receive', consumerId: initech.id },
+        { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id, signingKey: crypto.randomBytes(32) },
+        { label: 'Acme backup', url: 'https://acme.example.com/webhooks/backup', consumerId: acme.id, isActive: false, signingKey: crypto.randomBytes(32) },
+        { label: 'Globex main', url: 'https://hooks.globex.example.com/inbound', consumerId: globex.id, signingKey: crypto.randomBytes(32) },
+        { label: 'Initech main', url: 'https://api.initech.example.com/hooks/receive', consumerId: initech.id, signingKey: crypto.randomBytes(32) },
     ]).returning();
     console.log(`Inserted ${insertedEndpoints.length} endpoints`);
     const [acmePrimary, acmeBackup, globexMain, initechMain] = insertedEndpoints;

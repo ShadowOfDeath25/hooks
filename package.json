@@ -31,9 +31,9 @@
   "dependencies": {
     "@fastify/autoload": "^6.5.0",
     "@fastify/multipart": "^10.1.1",
-    "chalk": "^6.0.0",
     "@fastify/rate-limit": "^10.0.0",
     "bullmq": "^5.81.4",
+    "chalk": "^6.0.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^1.0.0-rc.4",
     "fastify": "^5.12.1",

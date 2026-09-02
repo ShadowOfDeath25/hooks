@@ -2,10 +2,10 @@ import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import * as dotenv from 'dotenv';
 import {
+    createDeliveryProcessor,
     findDeliveryContext,
     recordDeliveryAttempt
-} from './repositories/deliveries.js';
-import { createDeliveryProcessor } from './services/delivery.js';
+} from './routes/deliveries/deliveries.services.js';
 dotenv.config();
 
 if (!process.env.REDIS_URL) {
