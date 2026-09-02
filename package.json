@@ -16,13 +16,14 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
+    "dev": "nodemon -L src/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "node src/db/seed.js"
   },
   "dependencies": {
+    "@fastify/autoload": "^6.5.0",
     "@fastify/multipart": "^10.1.1",
     "@fastify/rate-limit": "^10.0.0",
     "bullmq": "^5.81.4",
