@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { dummyQueue } from '../worker.js';
-import { events } from '../db/schema/events.js';
-import { consumers } from '../db/schema/consumers.js';
-import { endpoints } from '../db/schema/endpoints.js';
-import { deliveries } from '../db/schema/deliveries.js';
+import { db } from '../../db/index.js';
+import { dummyQueue } from '../../worker.js';
+import { events } from '../../db/schema/events.js';
+import { consumers } from '../../db/schema/consumers.js';
+import { endpoints } from '../../db/schema/endpoints.js';
+import { deliveries } from '../../db/schema/deliveries.js';
 
 
 // initial validation is done by fastify schema validation
