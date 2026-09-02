@@ -1,70 +1,74 @@
-import { eq } from 'drizzle-orm';
+import { eq ,and } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { dummyQueue } from '../../worker.js';
 import { events } from '../../db/schema/events.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 import { validatePayload } from './events.handlers.js';
 import { deliveries } from '../../db/schema/deliveries.js';
+import { NotFoundError } from '../../errors/NotFoundError.js';
+import { DBError } from '../../errors/DBError.js';
+import { QueueError } from '../../errors/QueueError.js';
 
 export async function createEvent(request, reply) {
     const payload = request.body;
     const { consumerID, eventData } = payload;
 
-    try {
-        await validatePayload(payload);
-    } catch (error) {
-        return reply.code(400).send({
-            success: false,
-            message: error?.cause?.message ?? error?.message,
-            stack: error.stack
-        });
-    }
+    await validatePayload(payload);
 
-    try {
-        // Insert event into database
-        const [createdEvent] = await db.insert(events).values({
+    let eventId;
+    let consumerEndpoints;
+
+    ({ eventId, consumerEndpoints } = await db.transaction(async (tx) => {
+        const [createdEvent] = await tx.insert(events).values({
             type: eventData.type,
             payload: eventData,
             consumerId: consumerID
         }).returning();
-        
-        const eventId = createdEvent.id;
-        const consumerEndpoints = await db.select().from(endpoints).where(eq(endpoints.consumerId, consumerID));
+
+        if (!createdEvent) {
+            throw new DBError(`Failed to create event for consumer ${consumerID}`);
+        }
+
+        const consumerEndpoints = await tx.select()
+            .from(endpoints)
+            .where(and(eq(endpoints.consumerId, consumerID), eq(endpoints.isActive, true)));
 
         if (consumerEndpoints.length === 0) {
-            return reply.code(404).send({
-                success: false,
-                message: `No endpoints found for consumer ID ${consumerID}`
-            });
+            throw new NotFoundError(`No endpoints found for consumer ID ${consumerID}`);
         }
-        
-        // Create deliveries and enqueue jobs for each endpoint
-        for (const endpoint of consumerEndpoints) {
 
-            await db.insert(deliveries).values({
-                eventId: eventId,
+        let deliveryRecords = await tx.insert(deliveries).values(
+            consumerEndpoints.map((endpoint) => ({
+                eventId: createdEvent.id,
                 endpointId: endpoint.id,
                 status: 'pending'
-            });
+            }))
+        ).returning();
 
-            await dummyQueue.add('dummyQueue', {
-                event_id: eventId.toString(),
-                payload: eventData,
-                endpoint_id: endpoint.id.toString()
-            });
+        if (deliveryRecords.length !== consumerEndpoints.length) {
+            throw new DBError(`Failed to create delivery records for event ${createdEvent.id}`);
         }
 
-        return reply.code(201).send({
-            success: true,
-            message: 'Event received',
-            event_id: eventId
+        return {
+            eventId: createdEvent.id,
+            consumerEndpoints
+        };
+    }));
+
+    for (const endpoint of consumerEndpoints) {
+        let job = await dummyQueue.add('dummyQueue', {
+            event_id: eventId.toString(),
+            payload: eventData,
+            endpoint_id: endpoint.id.toString()
         });
-    } catch (error) {
-        return reply.code(500).send({
-            success: false,
-            message: 'Failed to process event',
-            error: error?.message,
-            stack: error.stack
-        });
+        if (!job) {
+            throw new QueueError(`Failed to enqueue job for event ${eventId} and endpoint ${endpoint.id}`);
+        }
     }
+
+    return reply.code(201).send({
+        success: true,
+        message: 'Event received',
+        event_id: eventId
+    });
 }
