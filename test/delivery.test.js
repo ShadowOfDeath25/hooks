@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
-import { createDeliveryProcessor } from '../src/services/delivery.js';
+import {
+    createDeliveryProcessor
+} from '../src/routes/deliveries/deliveries.services.js';
 
 const ENCRYPTION_KEY = crypto.randomBytes(32);
 const SIGNING_SECRET = '_hs_delivery_test_secret';
