@@ -2,9 +2,9 @@ import { createEndpointSchema, listEndpointsSchema, updateEndpointSchema, delete
 import { createEndpointHandler, listEndpointsHandler, updateEndpointHandler, deleteEndpointHandler } from './endpoints.handlers.js';
 
 export default async function endpointRoutes(fastify, options) {
-    fastify.post('/', { schema: createEndpointSchema }, createEndpointHandler);
-    fastify.get('/', { schema: listEndpointsSchema }, listEndpointsHandler);
-    fastify.patch('/:id', { schema: updateEndpointSchema }, updateEndpointHandler);
-    fastify.put('/:id', { schema: putEndpointSchema }, updateEndpointHandler); // PUT aliases to PATCH handler
-    fastify.delete('/:id', { schema: deleteEndpointSchema }, deleteEndpointHandler);
+    fastify.post('/', { preHandler: [fastify.authenticate], schema: createEndpointSchema }, createEndpointHandler);
+    fastify.get('/', { preHandler: [fastify.authenticate], schema: listEndpointsSchema }, listEndpointsHandler);
+    fastify.patch('/:id', { preHandler: [fastify.authenticate], schema: updateEndpointSchema }, updateEndpointHandler);
+    fastify.put('/:id', { preHandler: [fastify.authenticate], schema: putEndpointSchema }, updateEndpointHandler); // PUT aliases to PATCH handler
+    fastify.delete('/:id', { preHandler: [fastify.authenticate], schema: deleteEndpointSchema }, deleteEndpointHandler);
 }
