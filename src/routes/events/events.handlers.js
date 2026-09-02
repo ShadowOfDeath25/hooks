@@ -14,9 +14,10 @@ export async function validatePayload(payload) {
     }
     
     // Validate that consumerID exists in DB
-    const consumer = await db.select().from(consumers).where(eq(consumers.id, parseInt(consumerID))).limit(1);
+    const consumer = await db.select().from(consumers).where(eq(consumers.id, consumerID)).limit(1);
 
-    if (!consumer) {
+
+    if (consumer.length === 0) {
         throw new Error(`Consumer with ID ${consumerID} does not exist`);
     }
 }
