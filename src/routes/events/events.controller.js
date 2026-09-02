@@ -28,7 +28,6 @@ async function validatePayload(payload) {
 export async function createEvent(request, reply) {
     const payload = request.body;
     const { consumerID, eventData } = payload;
-    const parsedConsumerID = parseInt(consumerID); 
 
     try {
         await validatePayload(payload);
@@ -45,11 +44,11 @@ export async function createEvent(request, reply) {
         const [createdEvent] = await db.insert(events).values({
             type: eventData.type,
             payload: eventData,
-            consumerId: parsedConsumerID
+            consumerId: consumerID
         }).returning();
         
         const eventId = createdEvent.id;
-        const consumerEndpoints = await db.select().from(endpoints).where(eq(endpoints.consumerId, parsedConsumerID));
+        const consumerEndpoints = await db.select().from(endpoints).where(eq(endpoints.consumerId, consumerID));
         
         // Create deliveries and enqueue jobs for each endpoint
         for (const endpoint of consumerEndpoints) {

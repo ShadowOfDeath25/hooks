@@ -12,7 +12,7 @@ export const eventBodySchema = {
     type: 'object',
     required: ['consumerID', 'eventData'],
     properties: {
-        consumerID: { type:'string' },
+        consumerID: { type:'number' },
         eventData: eventPayloadSchema
     }
 };
@@ -21,8 +21,8 @@ export const eventinQueueSchema = {
     type: 'object',
     required: ['event_id', 'payload', 'endpoint_id'],
     properties: {
-        event_id: { type: 'string', required: true },
+        event_id: { type: 'number', required: true },
         payload: eventPayloadSchema,
-        endpoint_id: { type: 'string', required: true }
+        endpoint_id: { type: 'number', required: true }
     }
 }
