@@ -15,7 +15,11 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
+    "mock": "node mock/mock-receiver.js",
+    "test:mock": "node --test test/mock-receiver.test.js",
+    "mock:dev": "nodemon mock/mock-receiver.js",
     "dev": "nodemon -L index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
