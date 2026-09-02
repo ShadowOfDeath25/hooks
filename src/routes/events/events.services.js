@@ -15,7 +15,7 @@ export async function createEvent(request, reply) {
     } catch (error) {
         return reply.code(400).send({
             success: false,
-            message: error.cause.message ?? error.message,
+            message: error?.cause?.message ?? error?.message,
             stack: error.stack
         });
     }
@@ -30,6 +30,13 @@ export async function createEvent(request, reply) {
         
         const eventId = createdEvent.id;
         const consumerEndpoints = await db.select().from(endpoints).where(eq(endpoints.consumerId, consumerID));
+
+        if (consumerEndpoints.length === 0) {
+            return reply.code(404).send({
+                success: false,
+                message: `No endpoints found for consumer ID ${consumerID}`
+            });
+        }
         
         // Create deliveries and enqueue jobs for each endpoint
         for (const endpoint of consumerEndpoints) {
