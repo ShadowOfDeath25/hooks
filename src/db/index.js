@@ -6,10 +6,10 @@ import {endpoints} from './schema/endpoints.js'
 import {events} from './schema/events.js'
 import {deliveries} from './schema/deliveries.js'
 import {attempts} from './schema/attempts.js'
-import {api_keys} from './schema/api_keys.js'
+import {apiKeys} from './schema/apiKeys.js'
 import {relations} from './relations.js'
 
-const schema = {consumers, endpoints, events, deliveries, attempts, api_keys};
+const schema = {consumers, endpoints, events, deliveries, attempts, api_keys: apiKeys};
 
 const {POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_HOST, POSTGRES_PORT} = process.env
 const pool = new Pool({
