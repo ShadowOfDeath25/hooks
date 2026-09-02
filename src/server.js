@@ -3,7 +3,7 @@ import './worker.js'; // Start the worker
 import { dummyQueue } from './worker.js';
 
 import dbConnector from './plugins/db.js';
-import eventRoutes from './events/events.route.js';
+import eventRoutes from './routes/events/events.route.js';
 
 const fastify = Fastify({
     logger: true
