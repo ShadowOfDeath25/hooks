@@ -33,11 +33,15 @@ export async function createEndpointService(db, label, url, consumerId) {
 }
 
 export async function getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive = false) {
-    // Construct the where clause based on the includeInactive flag
-    let filterCondition = eq(endpoints.consumerId, consumerId);
-    if (!includeInactive) {
-        filterCondition = and(filterCondition, eq(endpoints.isActive, true));
+    // Construct the where clause dynamically based on provided filters
+    let filters = [];
+    if (consumerId !== undefined) {
+        filters.push(eq(endpoints.consumerId, consumerId));
     }
+    if (!includeInactive) {
+        filters.push(eq(endpoints.isActive, true));
+    }
+    const filterCondition = filters.length > 0 ? and(...filters) : undefined;
 
     // Execute both the data query and the count query in parallel for max performance
     const [consumerEndpoints, [{ total }]] = await Promise.all([
