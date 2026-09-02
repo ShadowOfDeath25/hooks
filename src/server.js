@@ -2,14 +2,15 @@ import Fastify from 'fastify';
 import './worker.js'; // Start the worker
 import { dummyQueue } from './worker.js';
 
-import dbConnector from './plugins/db.js'
-
+import dbConnector from './plugins/db.js';
+import eventRoutes from './events/events.route.js';
 
 const fastify = Fastify({
     logger: true
 });
 
-fastify.register(dbConnector)
+fastify.register(dbConnector);
+fastify.register(eventRoutes);
 
 fastify.get('/', async function (request, reply) {
     reply.send({status: "Ok"})
