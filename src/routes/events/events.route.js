@@ -1,8 +1,8 @@
-import { createEvent } from './events.controller.js';
-import { eventBodySchema } from './events.model.js';
+import { createEvent } from './events.handlers.js';
+import { eventBodySchema } from './events.schemas.js';
 
 export default async function eventRoutes(fastify) {
-    fastify.post('/events', {
+    fastify.post('events/', {
         schema: {
             body: eventBodySchema
         }
