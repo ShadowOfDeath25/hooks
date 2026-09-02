@@ -6,6 +6,13 @@ const AUTH_TAG_LENGTH = 16;
 const MINIMUM_ENCRYPTED_SECRET_LENGTH =
     KEY_VERSION_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH + 1;
 
+/**
+ * Loads the AES-256 encryption key configured for a key version.
+ *
+ * @param {number} version - Version stored in the encrypted secret.
+ * @returns {import('node:crypto').KeyObject} The configured encryption key.
+ * @throws {Error} If the version is unsupported or its key is invalid.
+ */
 function getEncryptionKey(version) {
     if (version !== 1) {
         throw new Error(`Encryption key version ${version} is not configured`);
@@ -26,6 +33,16 @@ function getEncryptionKey(version) {
     }
 }
 
+/**
+ * Decrypts a versioned endpoint signing secret using AES-256-GCM.
+ *
+ * The encrypted value must contain a version byte, a 12-byte IV,
+ * a 16-byte authentication tag, and the ciphertext.
+ *
+ * @param {Buffer} encryptedSecret - Encrypted endpoint signing secret.
+ * @returns {string} The decrypted signing secret.
+ * @throws {Error} If the value is invalid or cannot be decrypted.
+ */
 export function decryptSigningKey(encryptedSecret) {
     if (
         !Buffer.isBuffer(encryptedSecret) ||
@@ -59,6 +76,18 @@ export function decryptSigningKey(encryptedSecret) {
     }
 }
 
+/**
+ * Creates the versioned HMAC-SHA256 signature for a webhook request.
+ *
+ * The signed content uses the format:
+ * eventId.timestamp.requestBody
+ *
+ * @param {string} secret - Decrypted endpoint signing secret.
+ * @param {number|string} eventId - Identifier of the delivered event.
+ * @param {number|string} timestamp - Unix timestamp for the request.
+ * @param {string} body - Exact serialized request body being delivered.
+ * @returns {string} Signature formatted as `v1,<base64-signature>`.
+ */
 export function createWebhookSignature(secret, eventId, timestamp, body) {
     const signedContent = `${eventId}.${timestamp}.${body}`;
     const digest = crypto
