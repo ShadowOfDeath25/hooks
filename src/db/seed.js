@@ -16,6 +16,7 @@ async function clear() {
     await db.delete(endpoints);
     await db.delete(consumers);
     await db.delete(apiKeys);
+
     console.log('Cleared existing data');
 }
 
@@ -39,6 +40,7 @@ async function seed() {
     const [acme, globex, initech] = insertedConsumers;
 
     // --- endpoints (2 per consumer) ---
+
     // signingKey is bytea + notNull, so every row needs a real Buffer value.
     const insertedEndpoints = await db.insert(endpoints).values([
         { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id, signingKey: crypto.randomBytes(32) },

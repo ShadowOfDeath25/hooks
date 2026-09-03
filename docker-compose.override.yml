@@ -1,0 +1,20 @@
+services:
+  app:
+    build:
+      target: dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+    command: npx nodemon -L index.js
+
+  # Expose these to the host so you can psql/redis-cli in from your machine.
+  # Not something you want open by default in prod.
+  db:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
