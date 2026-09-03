@@ -19,10 +19,10 @@ export const eventBodySchema = {
 
 export const enqueuedEventSchema = {
     type: 'object',
-    required: ['event_id', 'payload', 'endpoint_id'],
+    required: ['eventId', 'payload', 'endpointId'],
     properties: {
-        event_id: { type: 'number', minimum: 1 },
+        eventId: { type: 'number', minimum: 1 },
         payload: eventPayloadSchema,
-        endpoint_id: { type: 'number', minimum: 1 }
+        endpointId: { type: 'number', minimum: 1 }
     }
 }
