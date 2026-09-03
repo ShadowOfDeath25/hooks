@@ -1,6 +1,7 @@
 import "dotenv/config";
 import Fastify from "fastify";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 
 const fastify = Fastify({ logger: true });
@@ -9,11 +10,33 @@ const port = Number(process.env.MOCK_PORT ?? 4000);
 const timeoutDelayMs = Number(
   process.env.MOCK_TIMEOUT_MS ?? 10000
 );
-const webhookSecret = process.env.MOCK_WEBHOOK_SECRET;
+const secretsPath = process.env.MOCK_SECRETS_PATH;
 
-if (!webhookSecret) {
+if (!secretsPath) {
+  throw new Error("MOCK_SECRETS_PATH is required for HMAC verification");
+}
+
+let webhookSecrets;
+
+try {
+  webhookSecrets = JSON.parse(fs.readFileSync(secretsPath, "utf8"));
+} catch (error) {
   throw new Error(
-    "MOCK_WEBHOOK_SECRET is required for HMAC verification"
+    `Could not load mock webhook secrets from ${secretsPath}: ${error.message}`
+  );
+}
+
+if (
+  !webhookSecrets ||
+  Array.isArray(webhookSecrets) ||
+  typeof webhookSecrets !== "object" ||
+  Object.entries(webhookSecrets).some(
+    ([path, secret]) =>
+      !path.startsWith("/") || typeof secret !== "string" || !secret
+  )
+) {
+  throw new Error(
+    "MOCK_SECRETS_PATH must point to a JSON object mapping paths to non-empty secrets"
   );
 }
 fastify.removeContentTypeParser("application/json");
@@ -112,11 +135,25 @@ function skipIfAlreadyProcessed(request, reply, done) {
 
   done();
 }
+function getWebhookSecret(request) {
+  const path = request.url.split("?")[0];
+
+  return webhookSecrets[path];
+}
 function verifyHmac(request, reply, done) {
+  const webhookSecret = getWebhookSecret(request);
   const eventId = request.headers["event-id"];
   const timestamp = request.headers["webhook-timestamp"];
   const signatureHeader =
     request.headers["webhook-signature"];
+
+  if (!webhookSecret) {
+    reply.code(500).send({
+      mock: true,
+      error: "No webhook secret configured for request path"
+    });
+    return;
+  }
 
   if (
   typeof eventId !== "string" ||
@@ -232,6 +269,12 @@ function saveRequest(request, outcome, attempt = null) {
     requestLog.length = LOG_LIMIT;
   }
 }
+
+fastify.get("/health", async (_request, reply) => {
+  return reply.code(200).send({
+    message: "server is up"
+  });
+});
 
 // Always successful
 fastify.post(

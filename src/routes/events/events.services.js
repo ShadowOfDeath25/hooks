@@ -13,6 +13,13 @@ export async function createEvent(request, reply) {
     const payload = request.body;
     const { consumerID, eventData } = payload;
 
+    console.log('[Events] Create request:', {
+        requestId: request.id,
+        consumerId: consumerID,
+        type: eventData.type,
+        payloadSize: Buffer.byteLength(JSON.stringify(eventData), 'utf8')
+    });
+
     await validatePayload(payload);
 
 
@@ -26,6 +33,13 @@ export async function createEvent(request, reply) {
         if (!createdEvent) {
             throw new DBError(`Failed to create event for consumer ${consumerID}`);
         }
+
+        console.log('[Events] Event persisted:', {
+            requestId: request.id,
+            eventId: createdEvent.id,
+            consumerId: consumerID,
+            type: eventData.type
+        });
 
         const consumerEndpoints = await tx.select()
             .from(endpoints)
@@ -46,6 +60,13 @@ export async function createEvent(request, reply) {
         if (deliveryRecords.length !== consumerEndpoints.length) {
             throw new DBError(`Failed to create delivery records for event ${createdEvent.id}`);
         }
+
+        console.log('[Events] Delivery records persisted:', {
+            requestId: request.id,
+            eventId: createdEvent.id,
+            count: deliveryRecords.length,
+            deliveryIds: deliveryRecords.map((delivery) => delivery.id)
+        });
 
         return {
             eventId: createdEvent.id,

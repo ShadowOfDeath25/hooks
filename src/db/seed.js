@@ -7,6 +7,10 @@ import { deliveries } from './schema/deliveries.js';
 import { attempts } from './schema/attempts.js';
 import { apiKeys } from './schema/apiKeys.js';
 import crypto from 'crypto';
+import fs from 'node:fs';
+import { encryptSecret, generateWebhookSecret } from '../utils/crypto.js';
+
+const createSeedSigningKey = (secret = generateWebhookSecret()) => encryptSecret(secret);
 
 async function clear() {
     // Delete in reverse-dependency order to respect FK constraints
@@ -31,23 +35,44 @@ async function seed() {
 
     // --- consumers ---
     const insertedConsumers = await db.insert(consumers).values([
+        { name: 'Mock server' },
         { name: 'Acme Corp' },
         { name: 'Globex Inc' },
         { name: 'Initech' },
     ]).returning();
     console.log(`Inserted ${insertedConsumers.length} consumers`);
-    const [acme, globex, initech] = insertedConsumers;
+    const [mockServer, acme, globex, initech] = insertedConsumers;
 
-    // --- endpoints (2 per consumer) ---
-    // signingKey is bytea + notNull, so every row needs a real Buffer value.
+    // --- endpoints ---
+    const mockSecrets = Object.fromEntries([
+        '/success',
+        '/status/200',
+        '/status/400',
+        '/status/500',
+        '/timeout',
+        '/fail-twice',
+    ].map((path) => [path, generateWebhookSecret()]));
+
     const insertedEndpoints = await db.insert(endpoints).values([
-        { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id, signingKey: crypto.randomBytes(32) },
-        { label: 'Acme backup', url: 'https://acme.example.com/webhooks/backup', consumerId: acme.id, isActive: false, signingKey: crypto.randomBytes(32) },
-        { label: 'Globex main', url: 'https://hooks.globex.example.com/inbound', consumerId: globex.id, signingKey: crypto.randomBytes(32) },
-        { label: 'Initech main', url: 'https://api.initech.example.com/hooks/receive', consumerId: initech.id, signingKey: crypto.randomBytes(32) },
+        { label: 'Mock success', url: 'http://mock-server:4000/success', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/success']) },
+        { label: 'Mock status 200', url: 'http://mock-server:4000/status/200', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/200']) },
+        { label: 'Mock status 400', url: 'http://mock-server:4000/status/400', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/400']) },
+        { label: 'Mock status 500', url: 'http://mock-server:4000/status/500', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/500']) },
+        { label: 'Mock timeout', url: 'http://mock-server:4000/timeout', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/timeout']) },
+        { label: 'Mock fail twice', url: 'http://mock-server:4000/fail-twice', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/fail-twice']) },
+        { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id, signingKey: createSeedSigningKey() },
+        { label: 'Acme backup', url: 'https://acme.example.com/webhooks/backup', consumerId: acme.id, isActive: false, signingKey: createSeedSigningKey() },
+        { label: 'Globex main', url: 'https://hooks.globex.example.com/inbound', consumerId: globex.id, signingKey: createSeedSigningKey() },
+        { label: 'Initech main', url: 'https://api.initech.example.com/hooks/receive', consumerId: initech.id, signingKey: createSeedSigningKey() },
     ]).returning();
     console.log(`Inserted ${insertedEndpoints.length} endpoints`);
-    const [acmePrimary, acmeBackup, globexMain, initechMain] = insertedEndpoints;
+    const [, , , , , , acmePrimary, acmeBackup, globexMain, initechMain] = insertedEndpoints;
+
+    fs.writeFileSync(
+        new URL('../../mock/secrets.json', import.meta.url),
+        `${JSON.stringify(mockSecrets, null, 4)}\n`
+    );
+    console.log('Wrote mock endpoint secrets to mock/secrets.json');
 
     // --- events ---
     const insertedEvents = await db.insert(events).values([
