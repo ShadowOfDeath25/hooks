@@ -9,7 +9,7 @@ export const createEndpointSchema = {
             // Use a strict Regex pattern to guarantee it starts with http:// or https://
             url: { 
                 type: 'string', 
-                pattern: '^https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)$',
+                // pattern: '^https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)$',
                 maxLength: 255 
             },
             consumerId: { type: 'integer', minimum: 1 }
