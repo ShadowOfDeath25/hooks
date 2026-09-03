@@ -37,7 +37,7 @@ services:
     environment:
       MOCK_PORT: "${MOCK_PORT:-4000}"
       MOCK_TIMEOUT_MS: "${MOCK_TIMEOUT_MS:-10000}"
-      MOCK_WEBHOOK_SECRET: "${MOCK_WEBHOOK_SECRET}"
+      MOCK_SECRETS_PATH: "${MOCK_SECRETS_PATH:-./mock/secrets.json}"
     ports:
       - "${MOCK_PORT:-4000}:${MOCK_PORT:-4000}"
     volumes:
