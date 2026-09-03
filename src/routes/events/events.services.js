@@ -15,10 +15,8 @@ export async function createEvent(request, reply) {
 
     await validatePayload(payload);
 
-    let eventId;
-    let consumerEndpoints;
 
-    ({ eventId, consumerEndpoints } = await db.transaction(async (tx) => {
+    const {eventId, consumerEndpoints} = await db.transaction(async (tx) => {
         const [createdEvent] = await tx.insert(events).values({
             type: eventData.type,
             payload: eventData,
@@ -37,7 +35,7 @@ export async function createEvent(request, reply) {
             throw new NotFoundError(`No endpoints found for consumer ID ${consumerID}`);
         }
 
-        let deliveryRecords = await tx.insert(deliveries).values(
+        const deliveryRecords = await tx.insert(deliveries).values(
             consumerEndpoints.map((endpoint) => ({
                 eventId: createdEvent.id,
                 endpointId: endpoint.id,
@@ -53,18 +51,27 @@ export async function createEvent(request, reply) {
             eventId: createdEvent.id,
             consumerEndpoints
         };
-    }));
+    });
 
-    for (const endpoint of consumerEndpoints) {
-        let job = await dummyQueue.add('dummyQueue', {
-            event_id: eventId.toString(),
-            payload: eventData,
-            endpoint_id: endpoint.id.toString()
-        });
-        if (!job) {
-            throw new QueueError(`Failed to enqueue job for event ${eventId} and endpoint ${endpoint.id}`);
-        }
+    const jobs = await dummyQueue.addBulk( 
+        consumerEndpoints.map((endpoint) => ({
+            name: 'dummyQueue',
+            data:{
+                eventId,
+                endpointId: endpoint.id,
+                payload: eventData,
+            }
+        }))
+    );
+
+    if (jobs.length !== consumerEndpoints.length) {
+        throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
     }
+
+    await db
+        .update(deliveries)
+        .set({ status: 'enqueued' })
+        .where(eq(deliveries.eventId, eventId));
 
     return reply.code(201).send({
         success: true,
