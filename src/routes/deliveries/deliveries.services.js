@@ -69,12 +69,12 @@ function getWebhookTimeoutMs() {
 }
 
 function validateJobData(data) {
-    if (!Number.isInteger(data?.event_id) || data.event_id <= 0) {
-        throw new Error('The delivery job must contain a valid event_id');
+    if (!Number.isInteger(data?.eventId) || data.eventId <= 0) {
+        throw new Error('The delivery job must contain a valid eventId');
     }
 
-    if (!Number.isInteger(data.endpoint_id) || data.endpoint_id <= 0) {
-        throw new Error('The delivery job must contain a valid endpoint_id');
+    if (!Number.isInteger(data.endpointId) || data.endpointId <= 0) {
+        throw new Error('The delivery job must contain a valid endpointId');
     }
 
     if (data.payload === undefined) {
@@ -105,7 +105,7 @@ export function createDeliveryProcessor({
     return async function processDelivery(job) {
         validateJobData(job.data);
 
-        const {event_id: eventId,payload,endpoint_id: endpointId} = job.data;
+        const {eventId: eventId,payload,endpointId: endpointId} = job.data;
         const context = await findContext(eventId, endpointId);
 
         if (!context) {
