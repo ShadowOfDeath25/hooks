@@ -13,10 +13,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 fastify.register(Autoload, {
     dir: path.join(__dirname, 'plugins')
 })
+
 fastify.register(Autoload, {
     dir: path.join(__dirname, 'routes'),
-    matchFilter: /.*\.routes\.js$/ // Only autoload files ending in .routes.js
-})
+    matchFilter: /.*\.routes\.js$/
+});
 
 fastify.get('/', async function (request, reply) {
     reply.send({status: "Ok"})
