@@ -66,7 +66,7 @@ test('sends the signed payload and records a successful attempt', async () => {
     const payload = { orderId: 17, paid: true };
 
     const result = await processor({
-        data: { event_id: 7, payload, endpoint_id: 9 }
+        data: { eventId: 7, payload, endpointId: 9 }
     });
 
     assert.equal(requests.length, 1);
@@ -107,7 +107,7 @@ test('records a non-2xx response as failed', async () => {
 
     await assert.rejects(
         processor({
-            data: { event_id: 7, payload: { test: true }, endpoint_id: 9 }
+            data: { eventId: 7, payload: { test: true }, endpointId: 9 }
         }),
         /received HTTP 500/
     );
@@ -127,7 +127,7 @@ test('records a timeout or network error with status code zero', async () => {
 
     await assert.rejects(
         processor({
-            data: { event_id: 7, payload: { test: true }, endpoint_id: 9 }
+            data: { eventId: 7, payload: { test: true }, endpointId: 9 }
         }),
         /failed before receiving an HTTP response/
     );
@@ -150,8 +150,8 @@ test('rejects malformed queue data before querying the database', async () => {
     });
 
     await assert.rejects(
-        processor({ data: { event_id: 7, payload: {} } }),
-        /valid endpoint_id/
+        processor({ data: { eventId: 7, payload: {} } }),
+        /valid endpointId/
     );
     assert.equal(queried, false);
 });

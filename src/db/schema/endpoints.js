@@ -1,8 +1,8 @@
-import {index, check, unique, pgTable, bytea} from "drizzle-orm/pg-core";
+import {index, check, pgTable, bytea} from "drizzle-orm/pg-core";
 import {consumers} from './consumers.js';
 import {sql} from 'drizzle-orm'
 
-const URL_REGEX = String.raw`^https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}\.[a-zA-Z0-9()]{1,6}\y([-a-zA-Z0-9()@:%_+.~#?&/=]*)$`;
+const URL_REGEX = String.raw`^https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}(\.[a-zA-Z0-9()]{1,6})?([-a-zA-Z0-9()@:%_+.~#?&/=]*)$`;
 
 export const endpoints = pgTable("endpoints", (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),

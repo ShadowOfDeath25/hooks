@@ -2,7 +2,7 @@ const eventPayloadSchema = {
     type: 'object',
     required: ['timestamp', 'type', 'data'],
     properties: {
-        timestamp: { type: 'integer', minimum: 0, format: 'unix-timestamp' },
+        timestamp: { type: 'integer', minimum: 0},
         type: { type: 'string' },
         data: { type: 'object' }
     }
@@ -19,10 +19,10 @@ export const eventBodySchema = {
 
 export const enqueuedEventSchema = {
     type: 'object',
-    required: ['event_id', 'payload', 'endpoint_id'],
+    required: ['eventId', 'payload', 'endpointId'],
     properties: {
-        event_id: { type: 'number', minimum: 1 },
+        eventId: { type: 'number', minimum: 1 },
         payload: eventPayloadSchema,
-        endpoint_id: { type: 'number', minimum: 1 }
+        endpointId: { type: 'number', minimum: 1 }
     }
 }
