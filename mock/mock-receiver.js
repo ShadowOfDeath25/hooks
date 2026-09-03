@@ -233,6 +233,12 @@ function saveRequest(request, outcome, attempt = null) {
   }
 }
 
+fastify.get("/health", async (_request, reply) => {
+  return reply.code(200).send({
+    message: "server is up"
+  });
+});
+
 // Always successful
 fastify.post(
   "/success",
