@@ -8,7 +8,7 @@ services:
     volumes:
       - .:/app
       - app_node_modules:/app/node_modules
-    command: sh -c "npm install && npx nodemon -L src/index.js"
+    command: sh -c "npm install && npx nodemon -L index.js"
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +39,7 @@ services:
       MOCK_TIMEOUT_MS: "${MOCK_TIMEOUT_MS:-10000}"
       MOCK_WEBHOOK_SECRET: "${MOCK_WEBHOOK_SECRET}"
     ports:
-      - "127.0.0.1:${MOCK_PORT:-4000}:${MOCK_PORT:-4000}"
+      - "${MOCK_PORT:-4000}:${MOCK_PORT:-4000}"
     volumes:
       - .:/app
       - /app/node_modules
