@@ -7,6 +7,9 @@ import { deliveries } from './schema/deliveries.js';
 import { attempts } from './schema/attempts.js';
 import { apiKeys } from './schema/apiKeys.js';
 import crypto from 'crypto';
+import { encryptSecret, generateWebhookSecret } from '../utils/crypto.js';
+
+const createSeedSigningKey = () => encryptSecret(generateWebhookSecret());
 
 async function clear() {
     // Delete in reverse-dependency order to respect FK constraints
@@ -39,12 +42,11 @@ async function seed() {
     const [acme, globex, initech] = insertedConsumers;
 
     // --- endpoints (2 per consumer) ---
-    // signingKey is bytea + notNull, so every row needs a real Buffer value.
     const insertedEndpoints = await db.insert(endpoints).values([
-        { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id, signingKey: crypto.randomBytes(32) },
-        { label: 'Acme backup', url: 'https://acme.example.com/webhooks/backup', consumerId: acme.id, isActive: false, signingKey: crypto.randomBytes(32) },
-        { label: 'Globex main', url: 'https://hooks.globex.example.com/inbound', consumerId: globex.id, signingKey: crypto.randomBytes(32) },
-        { label: 'Initech main', url: 'https://api.initech.example.com/hooks/receive', consumerId: initech.id, signingKey: crypto.randomBytes(32) },
+        { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id, signingKey: createSeedSigningKey() },
+        { label: 'Acme backup', url: 'https://acme.example.com/webhooks/backup', consumerId: acme.id, isActive: false, signingKey: createSeedSigningKey() },
+        { label: 'Globex main', url: 'https://hooks.globex.example.com/inbound', consumerId: globex.id, signingKey: createSeedSigningKey() },
+        { label: 'Initech main', url: 'https://api.initech.example.com/hooks/receive', consumerId: initech.id, signingKey: createSeedSigningKey() },
     ]).returning();
     console.log(`Inserted ${insertedEndpoints.length} endpoints`);
     const [acmePrimary, acmeBackup, globexMain, initechMain] = insertedEndpoints;
