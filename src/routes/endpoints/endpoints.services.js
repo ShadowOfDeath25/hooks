@@ -1,6 +1,8 @@
 import { endpoints } from '../../db/schema/endpoints.js';
+import { deliveries } from '../../db/schema/deliveries.js';
+import { attempts } from '../../db/schema/attempts.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
-import { eq, and, sql, isNull } from 'drizzle-orm';
+import { eq, and, sql, isNull, desc } from 'drizzle-orm';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 
 export async function createEndpointService(db, label, url, consumerId) {
@@ -25,8 +27,10 @@ export async function createEndpointService(db, label, url, consumerId) {
         url: endpoints.url,
         consumerId: endpoints.consumerId,
         isActive: endpoints.isActive,
+        consecutiveFailures: endpoints.consecutiveFailures,
         createdAt: endpoints.createdAt,
-        updatedAt: endpoints.updatedAt
+        updatedAt: endpoints.updatedAt,
+        deletedAt: endpoints.deletedAt
     });
 
     return { newEndpoint, plainTextSecret };
@@ -52,8 +56,10 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
             url: endpoints.url,
             consumerId: endpoints.consumerId,
             isActive: endpoints.isActive,
+            consecutiveFailures: endpoints.consecutiveFailures,
             createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt
+            updatedAt: endpoints.updatedAt,
+            deletedAt: endpoints.deletedAt
         })
         .from(endpoints)
         .where(filterCondition)
@@ -76,7 +82,12 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
     const safeUpdateData = {};
     if (updateData.label !== undefined) safeUpdateData.label = updateData.label;
     if (updateData.url !== undefined) safeUpdateData.url = updateData.url;
-    if (updateData.isActive !== undefined) safeUpdateData.isActive = updateData.isActive;
+    if (updateData.isActive !== undefined) {
+        safeUpdateData.isActive = updateData.isActive;
+        if (updateData.isActive === true) {
+            safeUpdateData.consecutiveFailures = 0;
+        }
+    }
     
     // Always update the timestamp when modifying the record
     safeUpdateData.updatedAt = new Date();
@@ -96,8 +107,10 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
             url: endpoints.url,
             consumerId: endpoints.consumerId,
             isActive: endpoints.isActive,
+            consecutiveFailures: endpoints.consecutiveFailures,
             createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt
+            updatedAt: endpoints.updatedAt,
+            deletedAt: endpoints.deletedAt
         });
 
     if (!updatedEndpoint) {
@@ -128,8 +141,10 @@ export async function deleteEndpointService(db, id, consumerId) {
             url: endpoints.url,
             consumerId: endpoints.consumerId,
             isActive: endpoints.isActive,
+            consecutiveFailures: endpoints.consecutiveFailures,
             createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt
+            updatedAt: endpoints.updatedAt,
+            deletedAt: endpoints.deletedAt
         });
 
     if (!deletedEndpoint) {
@@ -137,4 +152,57 @@ export async function deleteEndpointService(db, id, consumerId) {
     }
 
     return deletedEndpoint;
+}
+
+export async function resetEndpointFailuresService(db, endpointId) {
+    return db.update(endpoints)
+        .set({ consecutiveFailures: 0 })
+        .where(eq(endpoints.id, endpointId));
+}
+
+export async function incrementEndpointFailuresService(db, endpointId) {
+    const [updated] = await db.update(endpoints)
+        .set({ consecutiveFailures: sql`${endpoints.consecutiveFailures} + 1` })
+        .where(eq(endpoints.id, endpointId))
+        .returning({ consecutiveFailures: endpoints.consecutiveFailures });
+    
+    return updated?.consecutiveFailures ?? 0;
+}
+
+export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
+    // The Slow Path: Source of truth verification
+    // 1. Fetch recent attempts for this endpoint
+    const recentAttempts = await db.select({
+        statusCode: attempts.statusCode
+    })
+    .from(attempts)
+    .innerJoin(deliveries, eq(attempts.deliveryId, deliveries.id))
+    .where(eq(deliveries.endpointId, endpointId))
+    .orderBy(desc(attempts.createdAt))
+    .limit(threshold + 5); // Fetch a bit more just in case
+
+    // 2. Calculate true consecutive failures
+    let trueCount = 0;
+    for (const attempt of recentAttempts) {
+        const isSuccess = attempt.statusCode >= 200 && attempt.statusCode < 300;
+        if (isSuccess) {
+            break; // The consecutive failure chain is broken
+        }
+        trueCount++;
+    }
+
+    // 3. Self-heal the counter in the DB
+    const updateData = { consecutiveFailures: trueCount };
+    
+    // 4. Auto-disable if threshold is met or exceeded
+    if (trueCount >= threshold) {
+        updateData.isActive = false;
+    }
+
+    const [updated] = await db.update(endpoints)
+        .set(updateData)
+        .where(eq(endpoints.id, endpointId))
+        .returning({ isActive: endpoints.isActive, consecutiveFailures: endpoints.consecutiveFailures });
+
+    return updated;
 }

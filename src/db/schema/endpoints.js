@@ -11,6 +11,7 @@ export const endpoints = pgTable("endpoints", (t) => ({
     isActive: t.boolean("is_active").notNull().default(true),
     consumerId: t.integer("consumer_id").references(() => consumers.id),
     signingKey: bytea("signing_key").notNull(),
+    consecutiveFailures: t.integer("consecutive_failures").notNull().default(0),
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
     updatedAt: t.timestamp("updated_at"),
     deletedAt: t.timestamp("deleted_at"),
