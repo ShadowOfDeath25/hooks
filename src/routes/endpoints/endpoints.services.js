@@ -1,6 +1,6 @@
 import { endpoints } from '../../db/schema/endpoints.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 
 export async function createEndpointService(db, label, url, consumerId) {
@@ -41,6 +41,7 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
     if (!includeInactive) {
         filters.push(eq(endpoints.isActive, true));
     }
+    filters.push(isNull(endpoints.deletedAt));
     const filterCondition = filters.length > 0 ? and(...filters) : undefined;
 
     // Execute both the data query and the count query in parallel for max performance
@@ -85,7 +86,8 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
         .where(
             and(
                 eq(endpoints.id, id),
-                eq(endpoints.consumerId, consumerId) // Ensure they actually own this endpoint!
+                eq(endpoints.consumerId, consumerId), // Ensure they actually own this endpoint!
+                isNull(endpoints.deletedAt)
             )
         )
         .returning({
@@ -106,16 +108,18 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
 }
 
 export async function deleteEndpointService(db, id, consumerId) {
-    // Perform a soft-delete by updating isActive to false
+    // Perform a soft-delete by setting deletedAt and isActive to false
     const [deletedEndpoint] = await db.update(endpoints)
         .set({ 
             isActive: false, 
+            deletedAt: new Date(),
             updatedAt: new Date() 
         })
         .where(
             and(
                 eq(endpoints.id, id),
-                eq(endpoints.consumerId, consumerId) // Ensure they own this endpoint!
+                eq(endpoints.consumerId, consumerId), // Ensure they own this endpoint!
+                isNull(endpoints.deletedAt)
             )
         )
         .returning({
