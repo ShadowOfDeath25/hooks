@@ -13,8 +13,8 @@ services:
   # Not something you want open by default in prod.
   db:
     ports:
-      - "5433:5432"
+      - "5432:5432"
 
   redis:
     ports:
-      - "6380:6379"
+      - "6379:6379"
