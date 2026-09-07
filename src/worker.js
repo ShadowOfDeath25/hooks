@@ -24,9 +24,19 @@ const QUEUE_NAME = 'dummyQueue';
 
 export const dummyQueue = new Queue(QUEUE_NAME, { connection });
 
+import { db } from './db/index.js';
+import {
+    resetEndpointFailuresService,
+    incrementEndpointFailuresService,
+    verifyAndAutoDisableEndpointService
+} from './routes/endpoints/endpoints.services.js';
+
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
-    saveAttempt: recordDeliveryAttempt
+    saveAttempt: recordDeliveryAttempt,
+    resetFailures: (endpointId) => resetEndpointFailuresService(db, endpointId),
+    incrementFailures: (endpointId) => incrementEndpointFailuresService(db, endpointId),
+    verifyAndDisable: (endpointId) => verifyAndAutoDisableEndpointService(db, endpointId, Number(process.env.WEBHOOK_MAX_FAILURES) || 5)
 });
 
 const worker = new Worker(

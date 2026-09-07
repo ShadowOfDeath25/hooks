@@ -93,7 +93,11 @@ export function createDeliveryProcessor({
     findContext,
     saveAttempt,
     sendRequest = fetch,
-    now = Date.now
+    now = Date.now,
+    resetFailures,
+    incrementFailures,
+    verifyAndDisable,
+    maxFailures = 5
 } = {}) {
     if (typeof findContext !== 'function' || typeof saveAttempt !== 'function') {
         throw new Error('Delivery persistence functions are required');
@@ -153,6 +157,20 @@ export function createDeliveryProcessor({
             statusCode,
             deliveryStatus
         });
+
+        if (deliveryStatus === 'success') {
+            if (typeof resetFailures === 'function') {
+                await resetFailures(endpointId);
+            }
+        } else if (deliveryStatus === 'failed') {
+            if (typeof incrementFailures === 'function' && typeof verifyAndDisable === 'function') {
+                const currentCount = await incrementFailures(endpointId);
+                
+                if (currentCount >= maxFailures) {
+                    await verifyAndDisable(endpointId);
+                }
+            }
+        }
 
         if (requestError) {
             throw new Error(
