@@ -4,6 +4,37 @@ import { attempts } from '../../db/schema/attempts.js';
 import { deliveries } from '../../db/schema/deliveries.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 import { decryptSecret as decryptSecretKey, createWebhookSignature } from '../../utils/crypto.js';
+import { UnrecoverableError } from 'bullmq';
+
+/**
+ * Classifies an HTTP response into 'success', 'retriable', or 'terminal'
+ */
+function classifyDeliveryError(statusCode, requestError) {
+    // 1. Connection Errors & Timeouts (DNS failure, ECONNREFUSED, socket hang up)
+    if (requestError || statusCode === 0) return 'retriable'; 
+    
+    // 2. Success
+    if (statusCode >= 200 && statusCode < 300) return 'success';
+    
+    // 3. Explicit Design Decision: HTTP 429 Too Many Requests
+    // Reasoning: The receiver is actively load-shedding but healthy. 
+    // We MUST respect their rate limit and back off rather than dropping the payload.
+    if (statusCode === 429) return 'retriable'; 
+    
+    // 4. Client Timeout
+    if (statusCode === 408) return 'retriable';
+
+    // 5. Explicit Design Decision: HTTP 410 Gone
+    // Reasoning: The receiver proactively signaled this resource is permanently deleted. 
+    // Retrying ignores a direct command to stop sending data.
+    if (statusCode === 410) return 'terminal';
+
+    // 6. 5xx Server Errors (Temporary infrastructure blips)
+    if (statusCode >= 500 && statusCode < 600) return 'retriable'; 
+    
+    // 7. Terminal catch-all (400, 401, 403, 404, etc.)
+    return 'terminal'; 
+}
 
 export async function findDeliveryContext(eventId, endpointId) {
     const [context] = await db
@@ -148,9 +179,23 @@ export function createDeliveryProcessor({
         }
 
         const duration = Math.max(0, now() - startedAt);
-        const deliveryStatus =
-            statusCode >= 200 && statusCode < 300 ? 'success' : 'failed';
+        // 1. Classify the result
+        const classification = classifyDeliveryError(statusCode, requestError);
 
+        // 2. Determine Database Status
+        const maxAttempts = job.opts?.attempts || 1;
+        const attemptsLeft = maxAttempts - ((job.attemptsMade || 0) + 1);
+        
+        let deliveryStatus;
+        if (classification === 'success') {
+            deliveryStatus = 'success';
+        } else if (classification === 'retriable' && attemptsLeft > 0) {
+            deliveryStatus = 'enqueued'; // Keep it enqueued while retrying
+        } else {
+            deliveryStatus = 'failed'; // Exhausted OR Terminal
+        }
+
+        // 3. Save to Database
         const retrialNumber = await saveAttempt({
             deliveryId: context.deliveryId,
             duration,
@@ -158,6 +203,7 @@ export function createDeliveryProcessor({
             deliveryStatus
         });
 
+        // 4. Update Endpoint Health (Only on Terminal Success or Terminal Failure)
         if (deliveryStatus === 'success') {
             if (typeof resetFailures === 'function') {
                 await resetFailures(endpointId);
@@ -172,17 +218,17 @@ export function createDeliveryProcessor({
             }
         }
 
-        if (requestError) {
-            throw new Error(
-                `Delivery ${context.deliveryId} failed before receiving an HTTP response`,
-                { cause: requestError }
-            );
-        }
-
-        if (deliveryStatus === 'failed') {
-            throw new Error(
-                `Delivery ${context.deliveryId} received HTTP ${statusCode}`
-            );
+        // 5. Trigger BullMQ Routing
+        if (classification === 'retriable' && attemptsLeft > 0) {
+            const errorMsg = requestError 
+                ? `Delivery ${context.deliveryId} retrying (Network error: ${requestError.message})`
+                : `Delivery ${context.deliveryId} retrying. HTTP ${statusCode}`;
+            throw new Error(errorMsg);
+        } else if (classification === 'terminal' || (classification === 'retriable' && attemptsLeft <= 0)) {
+            const errorMsg = requestError
+                ? `Delivery ${context.deliveryId} terminal failure (Network error: ${requestError.message})`
+                : `Delivery ${context.deliveryId} terminal failure. HTTP ${statusCode}`;
+            throw new UnrecoverableError(errorMsg);
         }
 
         return {

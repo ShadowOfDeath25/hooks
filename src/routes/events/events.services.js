@@ -74,6 +74,8 @@ export async function createEvent(request, reply) {
         };
     });
 
+    const MAX_ATTEMPTS = Number(process.env.RETRY_MAX_ATTEMPTS) || 5;
+
     const jobs = await dummyQueue.addBulk( 
         consumerEndpoints.map((endpoint) => ({
             name: 'dummyQueue',
@@ -81,6 +83,10 @@ export async function createEvent(request, reply) {
                 eventId,
                 endpointId: endpoint.id,
                 payload: eventData,
+            },
+            opts: {
+                attempts: MAX_ATTEMPTS,
+                backoff: { type: 'webhookExponential' }
             }
         }))
     );

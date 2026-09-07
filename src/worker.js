@@ -20,9 +20,26 @@ connection.on('error', (err) => {
     console.error('[Redis] Connection error:', err.message);
 });
 
+const RETRY_BASE_DELAY = Number(process.env.RETRY_BASE_DELAY) || 1000;
+const RETRY_MULTIPLIER = Number(process.env.RETRY_MULTIPLIER) || 2;
+const RETRY_MAX_DELAY = Number(process.env.RETRY_MAX_DELAY) || 60000;
+
+const customBackoffStrategy = (attemptsMade, type, err, job) => {
+    if (type === 'webhookExponential') {
+        const delay = RETRY_BASE_DELAY * Math.pow(RETRY_MULTIPLIER, attemptsMade - 1);
+        return Math.min(delay, RETRY_MAX_DELAY);
+    }
+    return 1000;
+};
+
 const QUEUE_NAME = 'dummyQueue';
 
-export const dummyQueue = new Queue(QUEUE_NAME, { connection });
+export const dummyQueue = new Queue(QUEUE_NAME, { 
+    connection,
+    settings: {
+        backoffStrategy: customBackoffStrategy
+    }
+});
 
 import { db } from './db/index.js';
 import {
@@ -42,7 +59,12 @@ const processDelivery = createDeliveryProcessor({
 const worker = new Worker(
     QUEUE_NAME,
     processDelivery,
-    { connection }
+    { 
+        connection,
+        settings: {
+            backoffStrategy: customBackoffStrategy
+        }
+    }
 );
 
 worker.on('completed', (job, returnvalue) => {
