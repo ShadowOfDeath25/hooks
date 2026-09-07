@@ -4,21 +4,13 @@ import test from 'node:test';
 import {
     createDeliveryProcessor
 } from '../src/routes/deliveries/deliveries.services.js';
+import {
+    encryptSecret
+} from '../src/utils/crypto.js';
 
 const ENCRYPTION_KEY = crypto.randomBytes(32);
 const SIGNING_SECRET = '_hs_delivery_test_secret';
 
-function encryptSigningKey(secret) {
-    const version = Buffer.from([1]);
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-    const ciphertext = Buffer.concat([
-        cipher.update(secret, 'utf8'),
-        cipher.final()
-    ]);
-
-    return Buffer.concat([version, iv, cipher.getAuthTag(), ciphertext]);
-}
 
 function createProcessor({ responseStatus, requestError } = {}) {
     const attempts = [];
@@ -33,7 +25,7 @@ function createProcessor({ responseStatus, requestError } = {}) {
         findContext: async () => ({
             deliveryId: 42,
             endpointUrl: 'https://receiver.example/webhook',
-            signingKey: encryptSigningKey(SIGNING_SECRET)
+            signingKey: encryptSecret(SIGNING_SECRET)
         }),
         saveAttempt: async (attempt) => {
             attempts.push(attempt);
