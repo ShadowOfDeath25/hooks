@@ -34,12 +34,7 @@ const customBackoffStrategy = (attemptsMade, type, err, job) => {
 
 const QUEUE_NAME = 'dummyQueue';
 
-export const dummyQueue = new Queue(QUEUE_NAME, { 
-    connection,
-    settings: {
-        backoffStrategy: customBackoffStrategy
-    }
-});
+export const dummyQueue = new Queue(QUEUE_NAME, { connection });
 
 import { db } from './db/index.js';
 import {
