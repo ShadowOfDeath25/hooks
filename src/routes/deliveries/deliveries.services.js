@@ -128,7 +128,7 @@ export function createDeliveryProcessor({
     resetFailures,
     incrementFailures,
     verifyAndDisable,
-    maxFailures = 5
+    maxFailures = Number(process.env.WEBHOOK_MAX_FAILURES) || 5
 } = {}) {
     if (typeof findContext !== 'function' || typeof saveAttempt !== 'function') {
         throw new Error('Delivery persistence functions are required');
