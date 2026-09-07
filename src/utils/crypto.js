@@ -116,3 +116,25 @@ export const decryptSecret = (encryptedBuffer) => {
         );
     }
 };
+
+/**
+ * Creates the versioned HMAC-SHA256 signature for a webhook request.
+ *
+ * The signed content uses the format:
+ * eventId.timestamp.requestBody
+ *
+ * @param {string} secret - Decrypted endpoint signing secret.
+ * @param {number|string} eventId - Identifier of the delivered event.
+ * @param {number|string} timestamp - Unix timestamp for the request.
+ * @param {string} body - Exact serialized request body being delivered.
+ * @returns {string} Signature formatted as `v1,<base64-signature>`.
+ */
+export function createWebhookSignature(secret, eventId, timestamp, body) {
+    const signedContent = `${eventId}.${timestamp}.${body}`;
+    const digest = crypto
+        .createHmac('sha256', secret)
+        .update(signedContent)
+        .digest('base64');
+
+    return `v1,${digest}`;
+}

@@ -3,10 +3,7 @@ import { db } from '../../db/index.js';
 import { attempts } from '../../db/schema/attempts.js';
 import { deliveries } from '../../db/schema/deliveries.js';
 import { endpoints } from '../../db/schema/endpoints.js';
-import {
-    createWebhookSignature,
-    decryptSigningKey
-} from '../../utils/webhook-signing.js';
+import { decryptSecret as decryptSecretKey, createWebhookSignature } from '../../utils/crypto.js';
 
 export async function findDeliveryContext(eventId, endpointId) {
     const [context] = await db
@@ -121,7 +118,7 @@ export function createDeliveryProcessor({
         try {
             const body = serializePayload(payload);
             const timestamp = Math.floor(now() / 1000).toString();
-            const secret = decryptSigningKey(context.signingKey);
+            const secret = decryptSecretKey(context.signingKey);
             const signature = createWebhookSignature(
                 secret,
                 eventId,
