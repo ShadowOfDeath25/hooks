@@ -174,24 +174,24 @@ export async function incrementEndpointFailuresService(db, endpointId) {
 
 export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
     // The Slow Path: Source of truth verification
-    // 1. Fetch recent attempts for this endpoint
-    const recentAttempts = await db.select({
-        statusCode: attempts.statusCode
+    // 1. Fetch recent deliveries for this endpoint
+    const recentDeliveries = await db.select({
+        status: deliveries.status
     })
-    .from(attempts)
-    .innerJoin(deliveries, eq(attempts.deliveryId, deliveries.id))
+    .from(deliveries)
     .where(eq(deliveries.endpointId, endpointId))
-    .orderBy(desc(attempts.createdAt))
+    .orderBy(desc(deliveries.createdAt))
     .limit(threshold + 5); // Fetch a bit more just in case
 
     // 2. Calculate true consecutive failures
     let trueCount = 0;
-    for (const attempt of recentAttempts) {
-        const isSuccess = attempt.statusCode >= 200 && attempt.statusCode < 300;
-        if (isSuccess) {
+    for (const delivery of recentDeliveries) {
+        if (delivery.status === 'success') {
             break; // The consecutive failure chain is broken
         }
-        trueCount++;
+        if (delivery.status === 'failed') {
+            trueCount++;
+        }
     }
 
     // 3. Self-heal the counter in the DB
