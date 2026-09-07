@@ -4,6 +4,7 @@ import { attempts } from '../../db/schema/attempts.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
 import { eq, and, sql, isNull, desc } from 'drizzle-orm';
 import { NotFoundError } from '../../errors/NotFoundError.js';
+import { ConflictError } from '../../errors/ConflictError.js';
 
 export async function createEndpointService(db, label, url, consumerId) {
 
@@ -36,7 +37,7 @@ export async function createEndpointService(db, label, url, consumerId) {
     return { newEndpoint, plainTextSecret };
 }
 
-export async function getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive = false) {
+export async function getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive = false, includeDeleted = false) {
     // Construct the where clause dynamically based on provided filters
     let filters = [];
     if (consumerId !== undefined) {
@@ -45,7 +46,9 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
     if (!includeInactive) {
         filters.push(eq(endpoints.isActive, true));
     }
-    filters.push(isNull(endpoints.deletedAt));
+    if (!includeDeleted) {
+        filters.push(isNull(endpoints.deletedAt));
+    }
     const filterCondition = filters.length > 0 ? and(...filters) : undefined;
 
     // Execute both the data query and the count query in parallel for max performance
@@ -205,4 +208,62 @@ export async function verifyAndAutoDisableEndpointService(db, endpointId, thresh
         .returning({ isActive: endpoints.isActive, consecutiveFailures: endpoints.consecutiveFailures });
 
     return updated;
+}
+
+export async function restoreEndpointService(db, id, consumerId) {
+    // 1. Fetch the deleted endpoint to get its URL
+    const [targetEndpoint] = await db.select({ url: endpoints.url, deletedAt: endpoints.deletedAt })
+        .from(endpoints)
+        .where(
+            and(
+                eq(endpoints.id, id),
+                eq(endpoints.consumerId, consumerId)
+            )
+        );
+
+    if (!targetEndpoint) {
+        throw new NotFoundError('Endpoint not found or you do not have permission to restore it.');
+    }
+
+    if (!targetEndpoint.deletedAt) {
+        // It's already active, no need to restore
+        throw new ConflictError('Endpoint is already active and not deleted.');
+    }
+
+    // 2. Check for URL Collision (Does another ACTIVE endpoint have this URL?)
+    const [existingActive] = await db.select({ id: endpoints.id })
+        .from(endpoints)
+        .where(
+            and(
+                eq(endpoints.url, targetEndpoint.url),
+                isNull(endpoints.deletedAt)
+            )
+        );
+
+    if (existingActive) {
+        throw new ConflictError('Cannot restore this endpoint because another active endpoint is currently using its URL.');
+    }
+
+    // 3. Perform the Restore
+    const [restoredEndpoint] = await db.update(endpoints)
+        .set({ 
+            isActive: true, 
+            consecutiveFailures: 0,
+            deletedAt: null,
+            updatedAt: new Date() 
+        })
+        .where(eq(endpoints.id, id))
+        .returning({
+            id: endpoints.id,
+            label: endpoints.label,
+            url: endpoints.url,
+            consumerId: endpoints.consumerId,
+            isActive: endpoints.isActive,
+            consecutiveFailures: endpoints.consecutiveFailures,
+            createdAt: endpoints.createdAt,
+            updatedAt: endpoints.updatedAt,
+            deletedAt: endpoints.deletedAt
+        });
+
+    return restoredEndpoint;
 }

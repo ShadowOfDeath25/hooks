@@ -1,4 +1,4 @@
-import { createEndpointService, getConsumerEndpointsService, updateEndpointService, deleteEndpointService } from './endpoints.services.js';
+import { createEndpointService, getConsumerEndpointsService, updateEndpointService, deleteEndpointService, restoreEndpointService } from './endpoints.services.js';
 
 export async function createEndpointHandler(request, reply) {
     const { label, url, consumerId } = request.body;
@@ -15,10 +15,10 @@ export async function createEndpointHandler(request, reply) {
 }
 
 export async function listEndpointsHandler(request, reply) {
-    const { consumerId, limit, offset, includeInactive } = request.query;
+    const { consumerId, limit, offset, includeInactive, includeDeleted } = request.query;
     const db = request.server.db; 
 
-    const consumerEndpoints = await getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive);
+    const consumerEndpoints = await getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive, includeDeleted);
     return reply.code(200).send(consumerEndpoints);
 }
 
@@ -44,4 +44,15 @@ export async function deleteEndpointHandler(request, reply) {
     
     // Return 200 OK with the updated object so they can confirm isActive is false
     return reply.code(200).send(deletedEndpoint);
+}
+
+export async function restoreEndpointHandler(request, reply) {
+    const { id } = request.params;
+    const { consumerId } = request.query;
+    const db = request.server.db;
+
+    // Service throws NotFoundError or ConflictError
+    const restoredEndpoint = await restoreEndpointService(db, id, consumerId);
+    
+    return reply.code(200).send(restoredEndpoint);
 }

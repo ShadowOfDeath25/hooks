@@ -45,7 +45,8 @@ export const listEndpointsSchema = {
             consumerId: { type: 'integer', minimum: 1 },
             limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
             offset: { type: 'integer', minimum: 0, default: 0 },
-            includeInactive: { type: 'boolean', default: false }
+            includeInactive: { type: 'boolean', default: false },
+            includeDeleted: { type: 'boolean', default: false }
         }
     },
     // Response schema strictly whitelists safe fields (excludes signingKey)
@@ -178,5 +179,41 @@ export const putEndpointSchema = {
         additionalProperties: false,
         required: ['label', 'url', 'isActive'],
         properties: updateEndpointSchema.body.properties
+    }
+};
+
+export const restoreEndpointSchema = {
+    params: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: {
+            id: { type: 'integer', minimum: 1 }
+        }
+    },
+    querystring: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['consumerId'],
+        properties: {
+            consumerId: { type: 'integer', minimum: 1 }
+        }
+    },
+    response: {
+        200: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                id: { type: 'integer' },
+                label: { type: 'string' },
+                url: { type: 'string' },
+                consumerId: { type: 'integer' },
+                isActive: { type: 'boolean' },
+                consecutiveFailures: { type: 'integer', minimum: 0 },
+                createdAt: { type: 'string', format: 'date-time' },
+                updatedAt: { type: 'string', format: 'date-time', nullable: true },
+                deletedAt: { type: 'string', format: 'date-time', nullable: true }
+            }
+        }
     }
 };
