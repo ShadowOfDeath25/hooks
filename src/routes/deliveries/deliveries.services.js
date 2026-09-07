@@ -3,10 +3,7 @@ import { db } from '../../db/index.js';
 import { attempts } from '../../db/schema/attempts.js';
 import { deliveries } from '../../db/schema/deliveries.js';
 import { endpoints } from '../../db/schema/endpoints.js';
-import {
-    createWebhookSignature,
-    decryptSigningKey
-} from '../../utils/webhook-signing.js';
+import { decryptSecret as decryptSecretKey, createWebhookSignature } from '../../utils/crypto.js';
 
 export async function findDeliveryContext(eventId, endpointId) {
     const [context] = await db
@@ -69,12 +66,12 @@ function getWebhookTimeoutMs() {
 }
 
 function validateJobData(data) {
-    if (!Number.isInteger(data?.event_id) || data.event_id <= 0) {
-        throw new Error('The delivery job must contain a valid event_id');
+    if (!Number.isInteger(data?.eventId) || data.eventId <= 0) {
+        throw new Error('The delivery job must contain a valid eventId');
     }
 
-    if (!Number.isInteger(data.endpoint_id) || data.endpoint_id <= 0) {
-        throw new Error('The delivery job must contain a valid endpoint_id');
+    if (!Number.isInteger(data.endpointId) || data.endpointId <= 0) {
+        throw new Error('The delivery job must contain a valid endpointId');
     }
 
     if (data.payload === undefined) {
@@ -105,7 +102,7 @@ export function createDeliveryProcessor({
     return async function processDelivery(job) {
         validateJobData(job.data);
 
-        const {event_id: eventId,payload,endpoint_id: endpointId} = job.data;
+        const {eventId: eventId,payload,endpointId: endpointId} = job.data;
         const context = await findContext(eventId, endpointId);
 
         if (!context) {
@@ -121,7 +118,7 @@ export function createDeliveryProcessor({
         try {
             const body = serializePayload(payload);
             const timestamp = Math.floor(now() / 1000).toString();
-            const secret = decryptSigningKey(context.signingKey);
+            const secret = decryptSecretKey(context.signingKey);
             const signature = createWebhookSignature(
                 secret,
                 eventId,

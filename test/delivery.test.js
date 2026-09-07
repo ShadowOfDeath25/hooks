@@ -4,21 +4,13 @@ import test from 'node:test';
 import {
     createDeliveryProcessor
 } from '../src/routes/deliveries/deliveries.services.js';
+import {
+    encryptSecret
+} from '../src/utils/crypto.js';
 
 const ENCRYPTION_KEY = crypto.randomBytes(32);
 const SIGNING_SECRET = '_hs_delivery_test_secret';
 
-function encryptSigningKey(secret) {
-    const version = Buffer.from([1]);
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
-    const ciphertext = Buffer.concat([
-        cipher.update(secret, 'utf8'),
-        cipher.final()
-    ]);
-
-    return Buffer.concat([version, iv, cipher.getAuthTag(), ciphertext]);
-}
 
 function createProcessor({ responseStatus, requestError } = {}) {
     const attempts = [];
@@ -33,7 +25,7 @@ function createProcessor({ responseStatus, requestError } = {}) {
         findContext: async () => ({
             deliveryId: 42,
             endpointUrl: 'https://receiver.example/webhook',
-            signingKey: encryptSigningKey(SIGNING_SECRET)
+            signingKey: encryptSecret(SIGNING_SECRET)
         }),
         saveAttempt: async (attempt) => {
             attempts.push(attempt);
@@ -66,7 +58,7 @@ test('sends the signed payload and records a successful attempt', async () => {
     const payload = { orderId: 17, paid: true };
 
     const result = await processor({
-        data: { event_id: 7, payload, endpoint_id: 9 }
+        data: { eventId: 7, payload, endpointId: 9 }
     });
 
     assert.equal(requests.length, 1);
@@ -107,7 +99,7 @@ test('records a non-2xx response as failed', async () => {
 
     await assert.rejects(
         processor({
-            data: { event_id: 7, payload: { test: true }, endpoint_id: 9 }
+            data: { eventId: 7, payload: { test: true }, endpointId: 9 }
         }),
         /received HTTP 500/
     );
@@ -127,7 +119,7 @@ test('records a timeout or network error with status code zero', async () => {
 
     await assert.rejects(
         processor({
-            data: { event_id: 7, payload: { test: true }, endpoint_id: 9 }
+            data: { eventId: 7, payload: { test: true }, endpointId: 9 }
         }),
         /failed before receiving an HTTP response/
     );
@@ -150,8 +142,8 @@ test('rejects malformed queue data before querying the database', async () => {
     });
 
     await assert.rejects(
-        processor({ data: { event_id: 7, payload: {} } }),
-        /valid endpoint_id/
+        processor({ data: { eventId: 7, payload: {} } }),
+        /valid endpointId/
     );
     assert.equal(queried, false);
 });
