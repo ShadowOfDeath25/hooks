@@ -86,13 +86,20 @@ export async function createEvent(request, reply) {
     );
 
     if (jobs.length !== consumerEndpoints.length) {
+        await db.transaction(async (tx) => {
+            await tx
+                .delete()
+                .from(deliveries)
+                .where(eq(deliveries.eventId, eventId));
+            
+            await tx
+                .delete()
+                .from(events)
+                .where(eq(events.id, eventId));
+        });
+
         throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
     }
-
-    await db
-        .update(deliveries)
-        .set({ status: 'enqueued' })
-        .where(eq(deliveries.eventId, eventId));
 
     return reply.code(201).send({
         success: true,
@@ -109,7 +116,6 @@ export async function getEventDetails(request, reply) {
     const summary = { 
         total: eventDeliveries.length,
         pending: eventDeliveries.filter(delivery => delivery.status === 'pending').length,
-        enqueued: eventDeliveries.filter(delivery => delivery.status === 'enqueued').length,
         delivered: eventDeliveries.filter(delivery => delivery.status === 'delivered').length,
         failed: eventDeliveries.filter(delivery => delivery.status === 'failed').length
      }; 
