@@ -1,4 +1,4 @@
-import { createEvent } from './events.handlers.js';
+import { createEvent, getEventDetails } from './events.handlers.js';
 import { eventBodySchema } from './events.schemas.js';
 
 export default async function eventRoutes(fastify) {
@@ -8,5 +8,9 @@ export default async function eventRoutes(fastify) {
             body: eventBodySchema
         }
     }, createEvent);
+
+    fastify.get('/:eventId', {
+        preHandler: [fastify.authenticate]
+    }, getEventDetails);
 }
 
