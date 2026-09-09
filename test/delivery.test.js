@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
+import { DelayedError } from 'bullmq';
 import {
     createDeliveryProcessor
 } from '../src/routes/deliveries/deliveries.services.js';
@@ -149,27 +150,34 @@ test('rejects malformed queue data before querying the database', async () => {
     assert.equal(queried, false);
 });
 
-test('rate-limited attempt is failed with status code 429 and does not send HTTP request', async () => {
+test('rate-limited job is moved to delayed and throws DelayedError without recording an attempt', async () => {
+    let delayedTimestamp = null;
+    let delayedToken = null;
+
+    const mockJob = {
+        data: { eventId: 7, payload: { test: true }, endpointId: 9 },
+        moveToDelayed: async (ts, tok) => {
+            delayedTimestamp = ts;
+            delayedToken = tok;
+        }
+    };
+
     const { processor, attempts, requests } = createProcessor({
         rateLimiter: {
-            allow: async () => false
+            allow: async () => false,
+            delayMs: 1500
         }
     });
 
     await assert.rejects(
-        processor({
-            data: { eventId: 7, payload: { test: true }, endpointId: 9 }
-        }),
-        /rate limit exceeded for endpoint 9/
+        processor(mockJob, 'test-token'),
+        (err) => err instanceof DelayedError || err.name === 'DelayedError'
     );
 
-    assert.equal(requests.length, 0);
-    assert.deepEqual(attempts, [{
-        deliveryId: 42,
-        duration: 0,
-        statusCode: 429,
-        deliveryStatus: 'failed'
-    }]);
+    assert.equal(requests.length, 0, 'No HTTP request should be sent');
+    assert.equal(attempts.length, 0, 'No attempt should be recorded in DB');
+    assert.equal(delayedToken, 'test-token');
+    assert.equal(delayedTimestamp, 1_700_000_000_000 + 1500);
 });
 
 test('rate limiter allows attempt and proceeds with HTTP request', async () => {

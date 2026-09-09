@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import IORedis from 'ioredis';
+import { DelayedError } from 'bullmq';
 import {
     createWebhookRateLimiter,
     getWebhookRateLimitConfig
@@ -28,9 +29,19 @@ test.before(() => {
 test('configuration: reads from environment variables and validates input', () => {
     process.env.WEBHOOK_RATE_LIMIT = '5';
     process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS = '2500';
+    delete process.env.WEBHOOK_RATE_LIMIT_DELAY_MS;
 
     const config = getWebhookRateLimitConfig();
-    assert.deepEqual(config, { limit: 5, windowMs: 2500 });
+    assert.deepEqual(config, { limit: 5, windowMs: 2500, delayMs: 2500 });
+
+    process.env.WEBHOOK_RATE_LIMIT_DELAY_MS = '3000';
+    const configWithDelay = getWebhookRateLimitConfig();
+    assert.deepEqual(configWithDelay, { limit: 5, windowMs: 2500, delayMs: 3000 });
+
+    process.env.WEBHOOK_RATE_LIMIT_DELAY_MS = '-1';
+    assert.throws(() => getWebhookRateLimitConfig(), /WEBHOOK_RATE_LIMIT_DELAY_MS must be a positive integer/);
+
+    delete process.env.WEBHOOK_RATE_LIMIT_DELAY_MS;
 
     // Invalid limit
     process.env.WEBHOOK_RATE_LIMIT = '0';
@@ -248,12 +259,23 @@ test('rate limiter: fails closed and logs error on Redis/infrastructure error', 
     assert.match(loggedErrors[0], /failing closed/);
 });
 
-test('delivery processor integration: rate-limited attempt is rejected with 429 and no HTTP request sent', async () => {
+test('delivery processor integration: rate-limited attempt is delayed via BullMQ and no HTTP request or attempt is recorded', async () => {
     const requests = [];
     const attempts = [];
+    let delayedTimestamp = null;
+    let delayedToken = null;
+
+    const mockJob = {
+        data: { eventId: 1, payload: { hello: 'world' }, endpointId: 88 },
+        moveToDelayed: async (ts, token) => {
+            delayedTimestamp = ts;
+            delayedToken = token;
+        }
+    };
 
     const mockRateLimiter = {
-        allow: async (endpointId) => false // Deny rate limit
+        allow: async (endpointId) => false, // Deny rate limit
+        delayMs: 2000
     };
 
     const processor = createDeliveryProcessor({
@@ -274,22 +296,19 @@ test('delivery processor integration: rate-limited attempt is rejected with 429 
     });
 
     await assert.rejects(
-        processor({
-            data: { eventId: 1, payload: { hello: 'world' }, endpointId: 88 }
-        }),
-        /rate limit exceeded for endpoint 88/
+        processor(mockJob, 'token-123'),
+        (err) => err instanceof DelayedError || err.name === 'DelayedError'
     );
 
     // HTTP request was NOT made
     assert.equal(requests.length, 0);
 
-    // Attempt was persisted as failed with status code 429
-    assert.deepEqual(attempts, [{
-        deliveryId: 101,
-        duration: attempts[0].duration,
-        statusCode: 429,
-        deliveryStatus: 'failed'
-    }]);
+    // No attempt recorded in DB
+    assert.equal(attempts.length, 0);
+
+    // BullMQ delayed job was scheduled
+    assert.equal(delayedToken, 'token-123');
+    assert.ok(delayedTimestamp > Date.now());
 });
 
 test('delivery processor integration: every attempt consumes rate limit regardless of HTTP outcome', async () => {
@@ -336,6 +355,7 @@ test('delivery processor integration: every attempt consumes rate limit regardle
             /received HTTP 500/
         );
         assert.equal(requests.length, 1);
+        assert.equal(attempts.length, 1);
 
         // Attempt 2: HTTP 200 (success) -> consumes 2nd token
         shouldHttpFail = false;
@@ -343,18 +363,28 @@ test('delivery processor integration: every attempt consumes rate limit regardle
             data: { eventId: 2, payload: { a: 2 }, endpointId }
         });
         assert.equal(requests.length, 2);
+        assert.equal(attempts.length, 2);
         assert.equal(result.statusCode, 200);
 
-        // Attempt 3: Rate limit exceeded (limit was 2) -> denied, no HTTP request made!
+        // Attempt 3: Rate limit exceeded (limit was 2) -> denied, moved to delayed, no HTTP request made!
+        let delayedTimestamp = null;
+        let delayedToken = null;
+        const mockJob = {
+            data: { eventId: 3, payload: { a: 3 }, endpointId },
+            moveToDelayed: async (ts, token) => {
+                delayedTimestamp = ts;
+                delayedToken = token;
+            }
+        };
+
         await assert.rejects(
-            processor({
-                data: { eventId: 3, payload: { a: 3 }, endpointId }
-            }),
-            /rate limit exceeded/
+            processor(mockJob, 'token-job-3'),
+            (err) => err instanceof DelayedError || err.name === 'DelayedError'
         );
         assert.equal(requests.length, 2, 'No 3rd HTTP request should be sent');
-        assert.equal(attempts[2].statusCode, 429);
-        assert.equal(attempts[2].deliveryStatus, 'failed');
+        assert.equal(attempts.length, 2, 'No 3rd attempt should be recorded');
+        assert.equal(delayedToken, 'token-job-3');
+        assert.ok(delayedTimestamp > Date.now());
     } finally {
         await rateLimiter.disconnect(false, { closeConnection: true });
     }
@@ -364,6 +394,8 @@ test('delivery processor integration: fails closed on rate limiter error and doe
     const requests = [];
     const attempts = [];
     const loggedErrors = [];
+    let delayedTimestamp = null;
+    let delayedToken = null;
 
     const mockRateLimiter = createWebhookRateLimiter({
         limit: 1,
@@ -394,18 +426,26 @@ test('delivery processor integration: fails closed on rate limiter error and doe
         rateLimiter: mockRateLimiter
     });
 
+    const mockJob = {
+        data: { eventId: 1, payload: { test: true }, endpointId: 50 },
+        moveToDelayed: async (ts, token) => {
+            delayedTimestamp = ts;
+            delayedToken = token;
+        }
+    };
+
     await assert.rejects(
-        processor({
-            data: { eventId: 1, payload: { test: true }, endpointId: 50 }
-        }),
-        /rate limit exceeded for endpoint 50/
+        processor(mockJob, 'token-err'),
+        (err) => err instanceof DelayedError || err.name === 'DelayedError'
     );
 
     // Request was denied (fail closed): no HTTP request made!
     assert.equal(requests.length, 0);
-    assert.equal(attempts.length, 1);
-    assert.equal(attempts[0].statusCode, 429);
-    assert.equal(attempts[0].deliveryStatus, 'failed');
+    // No attempt recorded!
+    assert.equal(attempts.length, 0);
+    // Delayed called
+    assert.equal(delayedToken, 'token-err');
+    assert.ok(delayedTimestamp > Date.now());
 
     // Error was logged
     assert.equal(loggedErrors.length, 1);

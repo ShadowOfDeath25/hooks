@@ -1,4 +1,5 @@
 import { and, eq, max } from 'drizzle-orm';
+import { DelayedError } from 'bullmq';
 import { db } from '../../db/index.js';
 import { attempts } from '../../db/schema/attempts.js';
 import { deliveries } from '../../db/schema/deliveries.js';
@@ -100,7 +101,7 @@ export function createDeliveryProcessor({
         throw new Error('Delivery persistence functions are required');
     }
 
-    return async function processDelivery(job) {
+    return async function processDelivery(job, token) {
         validateJobData(job.data);
 
         const {eventId: eventId,payload,endpointId: endpointId} = job.data;
@@ -117,20 +118,19 @@ export function createDeliveryProcessor({
         if (rateLimiter) {
             const isAllowed = await rateLimiter.allow(endpointId);
             if (!isAllowed) {
-                const duration = Math.max(0, now() - startedAt);
-                const statusCode = 429;
-                const deliveryStatus = 'failed';
+                const delayMs =
+                    rateLimiter.delayMs ??
+                    (typeof rateLimiter.getDelayMs === 'function'
+                        ? rateLimiter.getDelayMs()
+                        : null) ??
+                    rateLimiter.windowMs ??
+                    1000;
 
-                await saveAttempt({
-                    deliveryId: context.deliveryId,
-                    duration,
-                    statusCode,
-                    deliveryStatus
-                });
+                if (typeof job?.moveToDelayed === 'function') {
+                    await job.moveToDelayed(now() + delayMs, token);
+                }
 
-                throw new Error(
-                    `Delivery ${context.deliveryId} failed: rate limit exceeded for endpoint ${endpointId}`
-                );
+                throw new DelayedError();
             }
         }
         let statusCode = 0;

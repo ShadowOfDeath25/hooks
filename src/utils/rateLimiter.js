@@ -4,7 +4,7 @@ import IORedis from 'ioredis';
 /**
  * Reads and validates webhook rate limit configuration from environment variables.
  *
- * @returns {{ limit: number, windowMs: number }}
+ * @returns {{ limit: number, windowMs: number, delayMs: number }}
  */
 export function getWebhookRateLimitConfig() {
     const limit = Number(process.env.WEBHOOK_RATE_LIMIT);
@@ -18,7 +18,15 @@ export function getWebhookRateLimitConfig() {
         throw new Error('WEBHOOK_RATE_LIMIT_WINDOW_MS must be a positive integer');
     }
 
-    return { limit, windowMs };
+    let delayMs = windowMs;
+    if (process.env.WEBHOOK_RATE_LIMIT_DELAY_MS !== undefined && process.env.WEBHOOK_RATE_LIMIT_DELAY_MS !== '') {
+        delayMs = Number(process.env.WEBHOOK_RATE_LIMIT_DELAY_MS);
+        if (!Number.isInteger(delayMs) || delayMs <= 0) {
+            throw new Error('WEBHOOK_RATE_LIMIT_DELAY_MS must be a positive integer');
+        }
+    }
+
+    return { limit, windowMs, delayMs };
 }
 
 /**
@@ -30,6 +38,7 @@ export class WebhookRateLimiter {
      * @param {Object} [options={}]
      * @param {number} [options.limit] - Max attempts per window. Defaults to WEBHOOK_RATE_LIMIT.
      * @param {number} [options.windowMs] - Window size in ms. Defaults to WEBHOOK_RATE_LIMIT_WINDOW_MS.
+     * @param {number} [options.delayMs] - Delay in ms when rate limited. Defaults to WEBHOOK_RATE_LIMIT_DELAY_MS or windowMs.
      * @param {IORedis|Bottleneck.IORedisConnection} [options.connection] - Existing Redis connection or Bottleneck connection.
      * @param {string} [options.redisUrl] - Redis URL if connection is not provided.
      * @param {Object} [options.clientOptions] - Additional options for IORedis.
@@ -41,12 +50,19 @@ export class WebhookRateLimiter {
      */
     constructor(options = {}) {
         let envConfig = null;
-        if (options.limit === undefined || options.windowMs === undefined) {
-            envConfig = getWebhookRateLimitConfig();
+        if (options.limit === undefined || options.windowMs === undefined || options.delayMs === undefined) {
+            try {
+                envConfig = getWebhookRateLimitConfig();
+            } catch (err) {
+                if (options.limit === undefined || options.windowMs === undefined) {
+                    throw err;
+                }
+            }
         }
 
         this.limit = options.limit ?? envConfig?.limit;
         this.windowMs = options.windowMs ?? envConfig?.windowMs;
+        this.delayMs = options.delayMs ?? envConfig?.delayMs ?? this.windowMs;
         this.groupId = options.groupId || 'webhook:rate-limit:endpoint';
         this.logger = options.logger || console;
         this.checkTimeoutMs = options.checkTimeoutMs ?? 2000;
@@ -114,6 +130,14 @@ export class WebhookRateLimiter {
                 this.logger.error(`[RateLimiter] Bottleneck limiter error for endpoint ${key}: ${err?.message || err}`);
             });
         });
+    }
+
+    /**
+     * Gets the configured delay in ms for jobs delayed by rate limiting.
+     * @returns {number}
+     */
+    getDelayMs() {
+        return this.delayMs;
     }
 
     /**
