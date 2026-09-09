@@ -20,6 +20,7 @@
     "mock": "node mock/mock-receiver.js",
     "test:mock": "node --test test/mock-receiver.test.js",
     "test:delivery": "node --test test/delivery.test.js",
+    "test:recovery": "node --test test/workerCrashRecovery.test.js",
     "mock:dev": "nodemon mock/mock-receiver.js",
     "dev": "nodemon -L index.js",
     "db:generate": "drizzle-kit generate",

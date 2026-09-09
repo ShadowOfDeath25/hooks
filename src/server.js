@@ -1,18 +1,18 @@
-import Fastify from 'fastify'
-import Autoload from '@fastify/autoload'
-import * as path from "node:path";
-import {fileURLToPath} from "node:url";
-import './worker.js'; // Start the worker
-import { dummyQueue } from './worker.js';
+import Fastify from 'fastify';
+import Autoload from '@fastify/autoload';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dummyQueue, initQueue } from './queue.js';
+import { initWorker } from './worker.js';
 
 const fastify = Fastify({
     logger: true
-})
+});
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 fastify.register(Autoload, {
     dir: path.join(__dirname, 'plugins')
-})
+});
 
 fastify.register(Autoload, {
     dir: path.join(__dirname, 'routes'),
@@ -20,8 +20,8 @@ fastify.register(Autoload, {
 });
 
 fastify.get('/', async function (request, reply) {
-    reply.send({status: "Ok"})
-})
+    reply.send({ status: 'Ok' });
+});
 
 // Endpoint to test the queue with error handling
 fastify.post('/test-job', async function (request, reply) {
@@ -39,10 +39,17 @@ fastify.post('/test-job', async function (request, reply) {
     }
 });
 
-// Start the server
-fastify.listen({ port: 3000, host: '0.0.0.0' }, function (err, address) {
-    if (err) {
+// Initialize queue, worker and start the server
+async function start() {
+    try {
+        await initQueue();
+        await initWorker();
+        const address = await fastify.listen({ port: 3000, host: '0.0.0.0' });
+        fastify.log.info(`Server listening at ${address}`);
+    } catch (err) {
         fastify.log.error(err);
         process.exit(1);
     }
-});
+}
+
+start();
