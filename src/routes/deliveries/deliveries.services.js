@@ -92,6 +92,7 @@ function serializePayload(payload) {
 export function createDeliveryProcessor({
     findContext,
     saveAttempt,
+    rateLimiter,
     sendRequest = fetch,
     now = Date.now
 } = {}) {
@@ -112,6 +113,26 @@ export function createDeliveryProcessor({
         }
 
         const startedAt = now();
+
+        if (rateLimiter) {
+            const isAllowed = await rateLimiter.allow(endpointId);
+            if (!isAllowed) {
+                const duration = Math.max(0, now() - startedAt);
+                const statusCode = 429;
+                const deliveryStatus = 'failed';
+
+                await saveAttempt({
+                    deliveryId: context.deliveryId,
+                    duration,
+                    statusCode,
+                    deliveryStatus
+                });
+
+                throw new Error(
+                    `Delivery ${context.deliveryId} failed: rate limit exceeded for endpoint ${endpointId}`
+                );
+            }
+        }
         let statusCode = 0;
         let requestError;
 

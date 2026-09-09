@@ -12,7 +12,7 @@ const ENCRYPTION_KEY = crypto.randomBytes(32);
 const SIGNING_SECRET = '_hs_delivery_test_secret';
 
 
-function createProcessor({ responseStatus, requestError } = {}) {
+function createProcessor({ responseStatus, requestError, rateLimiter } = {}) {
     const attempts = [];
     const requests = [];
     const times = [
@@ -40,7 +40,8 @@ function createProcessor({ responseStatus, requestError } = {}) {
 
             return { status: responseStatus };
         },
-        now: () => times.shift()
+        rateLimiter,
+        now: () => times.shift() ?? 1_700_000_000_125
     });
 
     return { processor, attempts, requests };
@@ -147,3 +148,48 @@ test('rejects malformed queue data before querying the database', async () => {
     );
     assert.equal(queried, false);
 });
+
+test('rate-limited attempt is failed with status code 429 and does not send HTTP request', async () => {
+    const { processor, attempts, requests } = createProcessor({
+        rateLimiter: {
+            allow: async () => false
+        }
+    });
+
+    await assert.rejects(
+        processor({
+            data: { eventId: 7, payload: { test: true }, endpointId: 9 }
+        }),
+        /rate limit exceeded for endpoint 9/
+    );
+
+    assert.equal(requests.length, 0);
+    assert.deepEqual(attempts, [{
+        deliveryId: 42,
+        duration: 0,
+        statusCode: 429,
+        deliveryStatus: 'failed'
+    }]);
+});
+
+test('rate limiter allows attempt and proceeds with HTTP request', async () => {
+    let checkedEndpoint = null;
+    const { processor, attempts, requests } = createProcessor({
+        responseStatus: 200,
+        rateLimiter: {
+            allow: async (endpointId) => {
+                checkedEndpoint = endpointId;
+                return true;
+            }
+        }
+    });
+
+    const result = await processor({
+        data: { eventId: 7, payload: { orderId: 99 }, endpointId: 9 }
+    });
+
+    assert.equal(checkedEndpoint, 9);
+    assert.equal(requests.length, 1);
+    assert.equal(result.status, 'success');
+});
+

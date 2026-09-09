@@ -6,6 +6,7 @@ import {
     findDeliveryContext,
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
+import { createWebhookRateLimiter } from './lib/rateLimiter.js';
 dotenv.config();
 
 if (!process.env.REDIS_URL) {
@@ -24,9 +25,12 @@ const QUEUE_NAME = 'dummyQueue';
 
 export const dummyQueue = new Queue(QUEUE_NAME, { connection });
 
+export const rateLimiter = createWebhookRateLimiter({ connection });
+
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
-    saveAttempt: recordDeliveryAttempt
+    saveAttempt: recordDeliveryAttempt,
+    rateLimiter
 });
 
 const worker = new Worker(
@@ -50,6 +54,7 @@ worker.on('error', (err) => {
 const shutdown = async () => {
     console.log('[Worker] Shutting down gracefully...');
     await worker.close();
+    await rateLimiter.disconnect();
     process.exit(0);
 };
 
