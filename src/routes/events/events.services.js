@@ -1,6 +1,6 @@
 import { eq ,and } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { dummyQueue } from '../../worker.js';
+import { dummyQueue } from '../../queue.js';
 import { events } from '../../db/schema/events.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 import { validatePayload } from './events.handlers.js';

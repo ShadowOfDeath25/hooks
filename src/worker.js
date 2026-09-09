@@ -1,4 +1,4 @@
-import { Worker, Queue } from 'bullmq';
+import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import * as dotenv from 'dotenv';
 import {
@@ -6,54 +6,103 @@ import {
     findDeliveryContext,
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
+import { dummyQueue, QUEUE_NAME, initQueue, getRedisUrl } from './queue.js';
+
 dotenv.config();
 
-if (!process.env.REDIS_URL) {
-    throw new Error('REDIS_URL is missing in environment variables');
-}
+export { dummyQueue, QUEUE_NAME };
 
-const connection = new IORedis(process.env.REDIS_URL, {
+export const workerConnection = new IORedis(getRedisUrl(), {
     maxRetriesPerRequest: null,
 });
 
-connection.on('error', (err) => {
-    console.error('[Redis] Connection error:', err.message);
+workerConnection.on('error', (err) => {
+    console.error('[Redis-Worker] Connection error:', err.message);
 });
 
-const QUEUE_NAME = 'dummyQueue';
+export function getWorkerOptions(overrides = {}) {
+    return {
+        connection: workerConnection,
+        lockDuration: Number(process.env.WORKER_LOCK_DURATION_MS) || 30000,
+        stalledInterval: Number(process.env.WORKER_STALLED_INTERVAL_MS) || 30000,
+        maxStalledCount: Number.MAX_SAFE_INTEGER,
+        ...overrides
+    };
+}
 
-export const dummyQueue = new Queue(QUEUE_NAME, { connection });
+export function createWorkerInstance(processor, options = {}) {
+    const workerOptions = getWorkerOptions(options);
+    const workerInstance = new Worker(QUEUE_NAME, processor, workerOptions);
+
+    workerInstance.on('completed', (job, returnValue) => {
+        console.log(`[Worker] Job ${job.id} completed! Result:`, returnValue);
+    });
+
+    workerInstance.on('failed', (job, err) => {
+        console.error(`[Worker] Job ${job?.id} failed with error:`, err.message);
+    });
+
+    workerInstance.on('error', (err) => {
+        console.error('[Worker] Internal error:', err.message);
+    });
+
+    workerInstance.on('stalled', (jobId) => {
+        console.warn(`[Worker] Job ${jobId} stalled and has been reclaimed by worker!`);
+    });
+
+    return workerInstance;
+}
 
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
     saveAttempt: recordDeliveryAttempt
 });
 
-const worker = new Worker(
-    QUEUE_NAME,
-    processDelivery,
-    { connection }
-);
+export const worker = createWorkerInstance(processDelivery, { autorun: false });
 
-worker.on('completed', (job, returnvalue) => {
-    console.log(`[Worker] Job ${job.id} completed! Result:`, returnvalue);
-});
+export async function initWorker(timeoutMs = 5000) {
+    if (!worker.isRunning()) {
+        worker.run();
+    }
+    try {
+        await Promise.race([
+            worker.waitUntilReady(),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Worker readiness check timed out')), timeoutMs)
+            )
+        ]);
+        console.log(`[Worker] Worker initialized and ready for queue "${QUEUE_NAME}".`);
+        return worker;
+    } catch (err) {
+        console.error('[Worker] Failed to initialize worker:', err.message);
+        throw err;
+    }
+}
 
-worker.on('failed', (job, err) => {
-    console.error(`[Worker] Job ${job.id} failed with error:`, err.message);
-});
-
-worker.on('error', (err) => {
-    console.error('[Worker] Internal error:', err.message);
-});
-
-const shutdown = async () => {
+export const shutdown = async () => {
     console.log('[Worker] Shutting down gracefully...');
-    await worker.close();
+    try {
+        await worker.close();
+        await workerConnection.quit();
+    } catch (err) {
+        console.error('[Worker] Error during shutdown:', err.message);
+    }
     process.exit(0);
 };
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+if (process.argv[1] && process.argv[1].endsWith('worker.js')) {
+    (async () => {
+        try {
+            await initQueue();
+            await initWorker();
+        } catch (err) {
+            console.error('[Worker] Fatal error on startup:', err.message);
+            process.exit(1);
+        }
+    })();
+}
 
 export default worker;
