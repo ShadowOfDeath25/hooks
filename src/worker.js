@@ -29,12 +29,13 @@ connection.on('error', (err) => {
 
 const RETRY_BASE_DELAY = Number(process.env.RETRY_BASE_DELAY) || 1000;
 const RETRY_MULTIPLIER = Number(process.env.RETRY_MULTIPLIER) || 2;
-const RETRY_MAX_DELAY = Number(process.env.RETRY_MAX_DELAY) || 60000;
+const RETRY_MAX_DELAY = Number(process.env.RETRY_MAX_DELAY) || 3600000; // Default to 1 hour
 
 const customBackoffStrategy = (attemptsMade, type, err, job) => {
     if (type === 'webhookExponential') {
-        const delay = RETRY_BASE_DELAY * Math.pow(RETRY_MULTIPLIER, attemptsMade - 1);
-        return Math.min(delay, RETRY_MAX_DELAY);
+        const baseDelay = RETRY_BASE_DELAY * Math.pow(RETRY_MULTIPLIER, attemptsMade - 1);
+        const cappedDelay = Math.min(baseDelay, RETRY_MAX_DELAY);
+        return Math.floor(cappedDelay * (0.5 + Math.random() * 0.5)); // ±50% jitter
     }
     return 1000;
 };

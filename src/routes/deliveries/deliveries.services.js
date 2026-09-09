@@ -11,7 +11,7 @@ import { UnrecoverableError } from 'bullmq';
  */
 function classifyDeliveryError(statusCode, requestError) {
     // 1. Connection Errors & Timeouts (DNS failure, ECONNREFUSED, socket hang up)
-    if (requestError || statusCode === 0) return 'retriable'; 
+    if (requestError || !statusCode) return 'retriable'; 
     
     // 2. Success
     if (statusCode >= 200 && statusCode < 300) return 'success';
@@ -220,10 +220,15 @@ export function createDeliveryProcessor({
                 ? `Delivery ${context.deliveryId} retrying (Network error: ${requestError.message})`
                 : `Delivery ${context.deliveryId} retrying. HTTP ${statusCode}`;
             throw new Error(errorMsg);
-        } else if (classification === 'terminal' || (classification === 'retriable' && attemptsLeft <= 0)) {
+        } else if (classification === 'terminal') {
             const errorMsg = requestError
                 ? `Delivery ${context.deliveryId} terminal failure (Network error: ${requestError.message})`
                 : `Delivery ${context.deliveryId} terminal failure. HTTP ${statusCode}`;
+            throw new UnrecoverableError(errorMsg);
+        } else if (classification === 'retriable' && attemptsLeft <= 0) {
+            const errorMsg = requestError
+                ? `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts (Network error: ${requestError.message})`
+                : `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts. HTTP ${statusCode}`;
             throw new UnrecoverableError(errorMsg);
         }
 
