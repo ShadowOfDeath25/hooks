@@ -97,7 +97,12 @@ export async function createEvent(request, reply) {
     await db
         .update(deliveries)
         .set({ status: 'enqueued' })
-        .where(eq(deliveries.eventId, eventId));
+        .where(
+            and(
+                eq(deliveries.eventId, eventId),
+                eq(deliveries.status, 'pending')
+            )
+        );
 
     return reply.code(201).send({
         success: true,
