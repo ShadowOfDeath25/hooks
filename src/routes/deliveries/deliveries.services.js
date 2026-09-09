@@ -94,10 +94,7 @@ export function createDeliveryProcessor({
     saveAttempt,
     sendRequest = fetch,
     now = Date.now,
-    resetFailures,
-    incrementFailures,
-    verifyAndDisable,
-    maxFailures = Number(process.env.WEBHOOK_MAX_FAILURES) || 5
+    verifyAndDisable
 } = {}) {
     if (typeof findContext !== 'function' || typeof saveAttempt !== 'function') {
         throw new Error('Delivery persistence functions are required');
@@ -158,14 +155,8 @@ export function createDeliveryProcessor({
             deliveryStatus
         });
 
-        if (deliveryStatus === 'success') {
-            await resetFailures(endpointId);
-        } else if (deliveryStatus === 'failed') {
-            const currentCount = await incrementFailures(endpointId);
-            
-            if (currentCount >= maxFailures) {
-                await verifyAndDisable(endpointId);
-            }
+        if (deliveryStatus === 'failed') {
+            await verifyAndDisable(endpointId);
         }
 
         if (requestError) {
