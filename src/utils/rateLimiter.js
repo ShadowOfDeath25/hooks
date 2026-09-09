@@ -156,9 +156,10 @@ export class WebhookRateLimiter {
                 return false;
             }
 
-
+            // Infrastructure error (Redis connection dropped, timeout, etc.)
+            // FAIL CLOSED: deny request to prevent unthrottled traffic, log the error.
             this.logger.error(
-                `[RateLimiter] Infrastructure error checking rate limit for endpoint ${endpointId}; failing open: ${error?.message || error}`
+                `[RateLimiter] Infrastructure error checking rate limit for endpoint ${endpointId}; failing closed: ${error?.message || error}`
             );
             return false;
         }

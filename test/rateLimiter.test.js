@@ -4,7 +4,7 @@ import IORedis from 'ioredis';
 import {
     createWebhookRateLimiter,
     getWebhookRateLimitConfig
-} from '../src/lib/rateLimiter.js';
+} from '../src/utils/rateLimiter.js';
 import { createDeliveryProcessor } from '../src/routes/deliveries/deliveries.services.js';
 import { encryptSecret } from '../src/utils/crypto.js';
 

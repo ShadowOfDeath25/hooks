@@ -6,7 +6,7 @@ import {
     findDeliveryContext,
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
-import { createWebhookRateLimiter } from './lib/rateLimiter.js';
+import { createWebhookRateLimiter } from './utils/rateLimiter.js';
 dotenv.config();
 
 if (!process.env.REDIS_URL) {
