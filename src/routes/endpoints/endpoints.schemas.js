@@ -1,9 +1,17 @@
 export const createEndpointSchema = {
     // Fastify uses AJV for built-in, high-performance input validation.
+    params: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['consumerId'],
+        properties: {
+            consumerId: { type: 'integer', minimum: 1 }
+        }
+    },
     body: {
         type: 'object',
         additionalProperties: false,
-        required: ['label', 'url', 'consumerId'],
+        required: ['label', 'url'],
         properties: {
             label: { type: 'string', minLength: 1, maxLength: 255 },
             // Use a strict Regex pattern to guarantee it starts with http:// or https://
@@ -11,8 +19,7 @@ export const createEndpointSchema = {
                 type: 'string', 
                 pattern: '^https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}(\\.[a-zA-Z0-9()]{1,6})?([-a-zA-Z0-9()@:%_+.~#?&/=]*)$',
                 maxLength: 255 
-            },
-            consumerId: { type: 'integer', minimum: 1 }
+            }
         }
     },
     // The response schema acts as a strict whitelist, preventing accidental data leaks
@@ -38,11 +45,18 @@ export const createEndpointSchema = {
 };
 
 export const listEndpointsSchema = {
+    params: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['consumerId'],
+        properties: {
+            consumerId: { type: 'integer', minimum: 1 }
+        }
+    },
     querystring: {
         type: 'object',
         additionalProperties: false,
         properties: {
-            consumerId: { type: 'integer', minimum: 1 },
             limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
             offset: { type: 'integer', minimum: 0, default: 0 },
             includeInactive: { type: 'boolean', default: false },
@@ -84,17 +98,9 @@ export const updateEndpointSchema = {
     params: {
         type: 'object',
         additionalProperties: false,
-        required: ['id'],
+        required: ['id', 'consumerId'],
         properties: {
-            id: { type: 'integer', minimum: 1 }
-        }
-    },
-    // Require the consumerId in the query to prove ownership
-    querystring: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['consumerId'],
-        properties: {
+            id: { type: 'integer', minimum: 1 },
             consumerId: { type: 'integer', minimum: 1 }
         }
     },
@@ -138,17 +144,9 @@ export const deleteEndpointSchema = {
     params: {
         type: 'object',
         additionalProperties: false,
-        required: ['id'],
+        required: ['id', 'consumerId'],
         properties: {
-            id: { type: 'integer', minimum: 1 }
-        }
-    },
-    // Require the consumerId in the query to prove ownership
-    querystring: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['consumerId'],
-        properties: {
+            id: { type: 'integer', minimum: 1 },
             consumerId: { type: 'integer', minimum: 1 }
         }
     },
@@ -186,16 +184,9 @@ export const restoreEndpointSchema = {
     params: {
         type: 'object',
         additionalProperties: false,
-        required: ['id'],
+        required: ['id', 'consumerId'],
         properties: {
-            id: { type: 'integer', minimum: 1 }
-        }
-    },
-    querystring: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['consumerId'],
-        properties: {
+            id: { type: 'integer', minimum: 1 },
             consumerId: { type: 'integer', minimum: 1 }
         }
     },

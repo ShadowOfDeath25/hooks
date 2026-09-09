@@ -168,8 +168,14 @@ export async function incrementEndpointFailuresService(db, endpointId) {
         .set({ consecutiveFailures: sql`${endpoints.consecutiveFailures} + 1` })
         .where(eq(endpoints.id, endpointId))
         .returning({ consecutiveFailures: endpoints.consecutiveFailures });
+    if (!updated) {
+        throw new NotFoundError(`Endpoint ${endpointId} not found during increment.`);
+    }
+    if (updated.consecutiveFailures == null) {
+        throw new Error(`Database inconsistency: Endpoint ${endpointId} has null consecutiveFailures`);
+    }
     
-    return updated?.consecutiveFailures ?? 0;
+    return updated.consecutiveFailures;
 }
 
 export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
@@ -230,21 +236,7 @@ export async function restoreEndpointService(db, id, consumerId) {
         throw new ConflictError('Endpoint is already active and not deleted.');
     }
 
-    // 2. Check for URL Collision (Does another ACTIVE endpoint have this URL?)
-    const [existingActive] = await db.select({ id: endpoints.id })
-        .from(endpoints)
-        .where(
-            and(
-                eq(endpoints.url, targetEndpoint.url),
-                isNull(endpoints.deletedAt)
-            )
-        );
-
-    if (existingActive) {
-        throw new ConflictError('Cannot restore this endpoint because another active endpoint is currently using its URL.');
-    }
-
-    // 3. Perform the Restore
+    // 2. Perform the Restore
     const [restoredEndpoint] = await db.update(endpoints)
         .set({ 
             isActive: true, 

@@ -9,3 +9,4 @@ export default async function endpointRoutes(fastify, options) {
     fastify.delete('/:id', { preHandler: [fastify.authenticate], schema: deleteEndpointSchema }, deleteEndpointHandler);
     fastify.post('/:id/restore', { preHandler: [fastify.authenticate], schema: restoreEndpointSchema }, restoreEndpointHandler);
 }
+export const autoPrefix = '/consumers/:consumerId/endpoints';

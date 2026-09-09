@@ -205,16 +205,12 @@ export function createDeliveryProcessor({
 
         // 4. Update Endpoint Health (Only on Terminal Success or Terminal Failure)
         if (deliveryStatus === 'success') {
-            if (typeof resetFailures === 'function') {
-                await resetFailures(endpointId);
-            }
+            await resetFailures(endpointId);
         } else if (deliveryStatus === 'failed') {
-            if (typeof incrementFailures === 'function' && typeof verifyAndDisable === 'function') {
-                const currentCount = await incrementFailures(endpointId);
-                
-                if (currentCount >= maxFailures) {
-                    await verifyAndDisable(endpointId);
-                }
+            const currentCount = await incrementFailures(endpointId);
+            
+            if (currentCount >= maxFailures) {
+                await verifyAndDisable(endpointId);
             }
         }
 
