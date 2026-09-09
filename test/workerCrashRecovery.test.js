@@ -94,7 +94,7 @@ test('acceptance: killing a worker during an active delivery results in the deli
     await dummyQueue.clean(0, 1000, 'wait');
 
     // 3. Spawn Worker 1 in a separate child process
-    const childWorkerPath = path.join(__dirname, 'fixtures', 'worker-child.js');
+    const childWorkerPath = path.join(__dirname, 'fixtures', 'workerChild.js');
     const worker1Child = fork(childWorkerPath, [], {
         env: {
             ...process.env,
@@ -225,7 +225,7 @@ test('a job can be reclaimed repeatedly without limit across multiple consecutiv
     await dummyQueue.clean(0, 1000, 'active');
     await dummyQueue.clean(0, 1000, 'wait');
 
-    const childWorkerPath = path.join(__dirname, 'fixtures', 'worker-child.js');
+    const childWorkerPath = path.join(__dirname, 'fixtures', 'workerChild.js');
 
     // Spawn Worker 1
     const worker1 = fork(childWorkerPath, [], {
