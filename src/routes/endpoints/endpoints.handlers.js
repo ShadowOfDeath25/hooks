@@ -1,7 +1,8 @@
 import { createEndpointService, getConsumerEndpointsService, updateEndpointService, deleteEndpointService, restoreEndpointService } from './endpoints.services.js';
 
 export async function createEndpointHandler(request, reply) {
-    const { label, url, consumerId } = request.body;
+    const { label, url } = request.body;
+    const { consumerId } = request.params;
     const db = request.server.db; 
 
     const { newEndpoint, plainTextSecret } = await createEndpointService(db, label, url, consumerId);
@@ -15,7 +16,8 @@ export async function createEndpointHandler(request, reply) {
 }
 
 export async function listEndpointsHandler(request, reply) {
-    const { consumerId, limit, offset, includeInactive, includeDeleted } = request.query;
+    const { limit, offset, includeInactive, includeDeleted } = request.query;
+    const { consumerId } = request.params;
     const db = request.server.db; 
 
     const consumerEndpoints = await getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive, includeDeleted);
@@ -24,7 +26,7 @@ export async function listEndpointsHandler(request, reply) {
 
 export async function updateEndpointHandler(request, reply) {
     const { id } = request.params;
-    const { consumerId } = request.query;
+    const { consumerId } = request.params;
     const updateData = request.body;
     const db = request.server.db; 
 
@@ -36,7 +38,7 @@ export async function updateEndpointHandler(request, reply) {
 
 export async function deleteEndpointHandler(request, reply) {
     const { id } = request.params;
-    const { consumerId } = request.query;
+    const { consumerId } = request.params;
     const db = request.server.db;
 
     // Service throws NotFoundError if it doesn't exist
@@ -48,7 +50,7 @@ export async function deleteEndpointHandler(request, reply) {
 
 export async function restoreEndpointHandler(request, reply) {
     const { id } = request.params;
-    const { consumerId } = request.query;
+    const { consumerId } = request.params;
     const db = request.server.db;
 
     // Service throws NotFoundError or ConflictError

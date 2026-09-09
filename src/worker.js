@@ -6,6 +6,13 @@ import {
     findDeliveryContext,
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
+import { db } from './db/index.js';
+import {
+    resetEndpointFailuresService,
+    incrementEndpointFailuresService,
+    verifyAndAutoDisableEndpointService
+} from './routes/endpoints/endpoints.services.js';
+
 dotenv.config();
 
 if (!process.env.REDIS_URL) {
@@ -24,12 +31,6 @@ const QUEUE_NAME = 'dummyQueue';
 
 export const dummyQueue = new Queue(QUEUE_NAME, { connection });
 
-import { db } from './db/index.js';
-import {
-    resetEndpointFailuresService,
-    incrementEndpointFailuresService,
-    verifyAndAutoDisableEndpointService
-} from './routes/endpoints/endpoints.services.js';
 
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,

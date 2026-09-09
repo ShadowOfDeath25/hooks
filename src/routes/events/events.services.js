@@ -1,4 +1,4 @@
-import { eq ,and } from 'drizzle-orm';
+import { eq ,and, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { dummyQueue } from '../../worker.js';
 import { events } from '../../db/schema/events.js';
@@ -43,7 +43,13 @@ export async function createEvent(request, reply) {
 
         const consumerEndpoints = await tx.select()
             .from(endpoints)
-            .where(and(eq(endpoints.consumerId, consumerID), eq(endpoints.isActive, true)));
+            .where(
+                and(
+                    eq(endpoints.consumerId, consumerID), 
+                    eq(endpoints.isActive, true),
+                    isNull(endpoints.deletedAt)
+                )
+            );
 
         if (consumerEndpoints.length === 0) {
             throw new NotFoundError(`No endpoints found for consumer ID ${consumerID}`);

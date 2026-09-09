@@ -168,8 +168,14 @@ export async function incrementEndpointFailuresService(db, endpointId) {
         .set({ consecutiveFailures: sql`${endpoints.consecutiveFailures} + 1` })
         .where(eq(endpoints.id, endpointId))
         .returning({ consecutiveFailures: endpoints.consecutiveFailures });
+    if (!updated) {
+        throw new NotFoundError(`Endpoint ${endpointId} not found during increment.`);
+    }
+    if (updated.consecutiveFailures == null) {
+        throw new Error(`Database inconsistency: Endpoint ${endpointId} has null consecutiveFailures`);
+    }
     
-    return updated?.consecutiveFailures ?? 0;
+    return updated.consecutiveFailures;
 }
 
 export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
