@@ -68,38 +68,27 @@ export async function createEvent(request, reply) {
             deliveryIds: deliveryRecords.map((delivery) => delivery.id)
         });
 
+        const jobs = await dummyQueue.addBulk( 
+            consumerEndpoints.map((endpoint) => ({
+                name: 'dummyQueue',
+                data:{
+                    eventId: createdEvent.id,
+                    endpointId: endpoint.id,
+                    payload: eventData,
+                }
+            }))
+        );
+
+        if (!jobs || jobs.length === 0) {
+            throw new QueueError(`Failed to enqueue jobs for event ${createdEvent.id}`);
+        }
+
         return {
             eventId: createdEvent.id,
             consumerEndpoints
         };
     });
 
-    const jobs = await dummyQueue.addBulk( 
-        consumerEndpoints.map((endpoint) => ({
-            name: 'dummyQueue',
-            data:{
-                eventId,
-                endpointId: endpoint.id,
-                payload: eventData,
-            }
-        }))
-    );
-
-    if (jobs.length !== consumerEndpoints.length) {
-        await db.transaction(async (tx) => {
-            await tx
-                .delete()
-                .from(deliveries)
-                .where(eq(deliveries.eventId, eventId));
-            
-            await tx
-                .delete()
-                .from(events)
-                .where(eq(events.id, eventId));
-        });
-
-        throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
-    }
 
     return reply.code(201).send({
         success: true,
