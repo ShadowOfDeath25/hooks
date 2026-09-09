@@ -119,7 +119,7 @@ export class WebhookRateLimiter {
     /**
      * Checks if an outgoing attempt is allowed for the given endpoint.
      * Non-blocking, immediate resolution.
-     * Fails open on Redis/infrastructure errors.
+     * Fails closed on Redis/infrastructure errors.
      *
      * @param {number|string} endpointId
      * @returns {Promise<boolean>} - true if allowed, false if rate limited

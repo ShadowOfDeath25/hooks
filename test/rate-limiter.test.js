@@ -212,7 +212,7 @@ test('rate limiter: resolves immediately without waiting and keeps queue empty',
     }
 });
 
-test('rate limiter: fails open and logs error on Redis/infrastructure error', async () => {
+test('rate limiter: fails closed and logs error on Redis/infrastructure error', async () => {
     const loggedErrors = [];
     const mockLogger = {
         error: (...args) => loggedErrors.push(args.join(' '))
@@ -239,13 +239,13 @@ test('rate limiter: fails open and logs error on Redis/infrastructure error', as
 
     const allowed = await limiter.allow(endpointId);
 
-    // Must fail open (return true)
-    assert.equal(allowed, true);
+    // Must fail closed (return false)
+    assert.equal(allowed, false);
 
     // Must log the error
     assert.equal(loggedErrors.length, 1);
     assert.match(loggedErrors[0], /Connection to Redis lost/);
-    assert.match(loggedErrors[0], /failing open/);
+    assert.match(loggedErrors[0], /failing closed/);
 });
 
 test('delivery processor integration: rate-limited attempt is rejected with 429 and no HTTP request sent', async () => {
@@ -360,7 +360,7 @@ test('delivery processor integration: every attempt consumes rate limit regardle
     }
 });
 
-test('delivery processor integration: fails open on rate limiter error and proceeds with delivery', async () => {
+test('delivery processor integration: fails closed on rate limiter error and does not send HTTP request', async () => {
     const requests = [];
     const attempts = [];
     const loggedErrors = [];
@@ -394,16 +394,21 @@ test('delivery processor integration: fails open on rate limiter error and proce
         rateLimiter: mockRateLimiter
     });
 
-    const result = await processor({
-        data: { eventId: 1, payload: { test: true }, endpointId: 50 }
-    });
+    await assert.rejects(
+        processor({
+            data: { eventId: 1, payload: { test: true }, endpointId: 50 }
+        }),
+        /rate limit exceeded for endpoint 50/
+    );
 
-    // Request was allowed through (fail-open)
-    assert.equal(requests.length, 1);
-    assert.equal(result.status, 'success');
-    assert.equal(result.statusCode, 200);
+    // Request was denied (fail closed): no HTTP request made!
+    assert.equal(requests.length, 0);
+    assert.equal(attempts.length, 1);
+    assert.equal(attempts[0].statusCode, 429);
+    assert.equal(attempts[0].deliveryStatus, 'failed');
 
     // Error was logged
     assert.equal(loggedErrors.length, 1);
     assert.match(loggedErrors[0], /Redis connection timed out/);
+    assert.match(loggedErrors[0], /failing closed/);
 });
