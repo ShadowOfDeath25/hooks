@@ -230,21 +230,7 @@ export async function restoreEndpointService(db, id, consumerId) {
         throw new ConflictError('Endpoint is already active and not deleted.');
     }
 
-    // 2. Check for URL Collision (Does another ACTIVE endpoint have this URL?)
-    const [existingActive] = await db.select({ id: endpoints.id })
-        .from(endpoints)
-        .where(
-            and(
-                eq(endpoints.url, targetEndpoint.url),
-                isNull(endpoints.deletedAt)
-            )
-        );
-
-    if (existingActive) {
-        throw new ConflictError('Cannot restore this endpoint because another active endpoint is currently using its URL.');
-    }
-
-    // 3. Perform the Restore
+    // 2. Perform the Restore
     const [restoredEndpoint] = await db.update(endpoints)
         .set({ 
             isActive: true, 
