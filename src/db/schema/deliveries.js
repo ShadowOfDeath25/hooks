@@ -13,5 +13,6 @@ export const deliveries = pgTable("deliveries", (t) => ({
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
 }), (table) => [
     index("deliveries_event_id_fk_idx").on(table.eventId),
+    index("deliveries_endpoint_id_desc_idx").on(table.endpointId, table.id.desc()),
 
 ])

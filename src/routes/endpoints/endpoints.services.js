@@ -157,63 +157,33 @@ export async function deleteEndpointService(db, id, consumerId) {
     return deletedEndpoint;
 }
 
-export async function resetEndpointFailuresService(db, endpointId) {
-    return db.update(endpoints)
-        .set({ consecutiveFailures: 0 })
-        .where(eq(endpoints.id, endpointId));
-}
-
-export async function incrementEndpointFailuresService(db, endpointId) {
-    const [updated] = await db.update(endpoints)
-        .set({ consecutiveFailures: sql`${endpoints.consecutiveFailures} + 1` })
-        .where(eq(endpoints.id, endpointId))
-        .returning({ consecutiveFailures: endpoints.consecutiveFailures });
-    if (!updated) {
-        throw new NotFoundError(`Endpoint ${endpointId} not found during increment.`);
-    }
-    if (updated.consecutiveFailures == null) {
-        throw new Error(`Database inconsistency: Endpoint ${endpointId} has null consecutiveFailures`);
-    }
-    
-    return updated.consecutiveFailures;
-}
-
 export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
-    // The Slow Path: Source of truth verification
-    // 1. Fetch recent deliveries for this endpoint
+    // 1. Fetch the last X deliveries for this endpoint
     const recentDeliveries = await db.select({
         status: deliveries.status
     })
     .from(deliveries)
     .where(eq(deliveries.endpointId, endpointId))
-    .orderBy(desc(deliveries.createdAt))
-    .limit(threshold + 5); // Fetch a bit more just in case
+    .orderBy(desc(deliveries.id))
+    .limit(threshold);
 
-    // 2. Calculate true consecutive failures
-    let trueCount = 0;
-    for (const delivery of recentDeliveries) {
-        if (delivery.status === 'success') {
-            break; // The consecutive failure chain is broken
-        }
-        if (delivery.status === 'failed') {
-            trueCount++;
-        }
+    // 2. If we haven't even had `threshold` deliveries yet, it's safe.
+    if (recentDeliveries.length < threshold) {
+        return { isActive: true };
     }
 
-    // 3. Self-heal the counter in the DB
-    const updateData = { consecutiveFailures: trueCount };
-    
-    // 4. Auto-disable if threshold is met or exceeded
-    if (trueCount >= threshold) {
-        updateData.isActive = false;
+    // 3. Check if EVERY single one of the last `threshold` deliveries is terminally 'failed'
+    const allFailed = recentDeliveries.every(d => d.status === 'failed');
+
+    if (allFailed) {
+        const [updated] = await db.update(endpoints)
+            .set({ isActive: false })
+            .where(eq(endpoints.id, endpointId))
+            .returning({ isActive: endpoints.isActive });
+        return updated;
     }
 
-    const [updated] = await db.update(endpoints)
-        .set(updateData)
-        .where(eq(endpoints.id, endpointId))
-        .returning({ isActive: endpoints.isActive, consecutiveFailures: endpoints.consecutiveFailures });
-
-    return updated;
+    return { isActive: true };
 }
 
 export async function restoreEndpointService(db, id, consumerId) {

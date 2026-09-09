@@ -125,10 +125,7 @@ export function createDeliveryProcessor({
     saveAttempt,
     sendRequest = fetch,
     now = Date.now,
-    resetFailures,
-    incrementFailures,
-    verifyAndDisable,
-    maxFailures = Number(process.env.WEBHOOK_MAX_FAILURES) || 5
+    verifyAndDisable
 } = {}) {
     if (typeof findContext !== 'function' || typeof saveAttempt !== 'function') {
         throw new Error('Delivery persistence functions are required');
@@ -203,15 +200,9 @@ export function createDeliveryProcessor({
             deliveryStatus
         });
 
-        // 4. Update Endpoint Health (Only on Terminal Success or Terminal Failure)
-        if (deliveryStatus === 'success') {
-            await resetFailures(endpointId);
-        } else if (deliveryStatus === 'failed') {
-            const currentCount = await incrementFailures(endpointId);
-            
-            if (currentCount >= maxFailures) {
-                await verifyAndDisable(endpointId);
-            }
+        // 4. Update Endpoint Health (Only on Terminal Failure)
+        if (deliveryStatus === 'failed') {
+            await verifyAndDisable(endpointId);
         }
 
         // 5. Trigger BullMQ Routing

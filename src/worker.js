@@ -8,8 +8,6 @@ import {
 } from './routes/deliveries/deliveries.services.js';
 import { db } from './db/index.js';
 import {
-    resetEndpointFailuresService,
-    incrementEndpointFailuresService,
     verifyAndAutoDisableEndpointService
 } from './routes/endpoints/endpoints.services.js';
 
@@ -48,8 +46,6 @@ export const dummyQueue = new Queue(QUEUE_NAME, { connection });
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
     saveAttempt: recordDeliveryAttempt,
-    resetFailures: (endpointId) => resetEndpointFailuresService(db, endpointId),
-    incrementFailures: (endpointId) => incrementEndpointFailuresService(db, endpointId),
     verifyAndDisable: (endpointId) => verifyAndAutoDisableEndpointService(db, endpointId, Number(process.env.WEBHOOK_MAX_FAILURES) || 5)
 });
 
