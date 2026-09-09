@@ -214,7 +214,7 @@ test("Mock receiver full test suite", async (t) => {
   );
 
   await t.test(
-    "fail-twice counters are keyed by Event-Id",
+    "fail-twice counters are scoped by path and Event-Id",
     async () => {
       await reset();
 
@@ -303,7 +303,7 @@ test("Mock receiver full test suite", async (t) => {
 
     const state = await response.json();
 
-    assert.equal(state.attempts[eventId], 3);
+    assert.equal(state.attempts[`/fail-twice:${eventId}`], 3);
     assert.ok(
       state.processedEvents.includes(`/fail-twice:${eventId}`)
     );

@@ -69,9 +69,22 @@ function getProcessingKey(request) {
   return `${path}:${eventId}`;
 }
 function getRetryKey(request) {
-  return request.headers["event-id"];
+  return getProcessingKey(request);
 }
+function verifyEventId(request, reply, done) {
+  const eventId = request.headers["event-id"];
 
+  if (typeof eventId !== "string" || !eventId.trim()) {
+    reply.code(400).send({
+      mock: true,
+      error: "Event-Id header is required"
+    });
+
+    return;
+  }
+
+  done();
+}
 function skipIfAlreadyProcessed(request, reply, done) {
   const eventId = request.headers["event-id"];
   const processingKey = getProcessingKey(request);
@@ -119,15 +132,15 @@ function verifyHmac(request, reply, done) {
   }
 
   if (
-  typeof eventId !== "string" ||
   typeof timestamp !== "string" ||
   typeof signatureHeader !== "string"
 ) {
   reply.code(401).send({
     mock: true,
     error:
-      "Event-Id, Webhook-Timestamp and Webhook-Signature headers are required"
+      "Webhook-Timestamp and Webhook-Signature headers are required"
   });
+
   return;
 }
 
@@ -243,9 +256,10 @@ fastify.post(
   "/success",
   {
     preHandler: [
-      verifyHmac,
-      skipIfAlreadyProcessed
-    ]
+  verifyEventId,
+  verifyHmac,
+  skipIfAlreadyProcessed
+]
   },
   async (request, reply) => {
     saveRequest(request, "success");
@@ -264,9 +278,10 @@ fastify.post(
   "/status/:code",
   {
   preHandler: [
-    verifyHmac,
-    skipIfAlreadyProcessed
-  ]
+  verifyEventId,
+  verifyHmac,
+  skipIfAlreadyProcessed
+]
 },
   async (request, reply) => {
     const code = Number(request.params.code);
@@ -300,9 +315,10 @@ fastify.post(
   "/timeout",
   {
   preHandler: [
-    verifyHmac,
-    skipIfAlreadyProcessed
-  ]
+  verifyEventId,
+  verifyHmac,
+  skipIfAlreadyProcessed
+]
 },
   async (request, reply) => {
     saveRequest(
@@ -326,6 +342,7 @@ fastify.post(
   "/fail-twice",
   {
     preHandler: [
+  verifyEventId,
   verifyHmac,
   skipIfAlreadyProcessed
 ]
