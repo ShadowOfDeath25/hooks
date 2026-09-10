@@ -6,6 +6,7 @@ import { events } from './schema/events.js';
 import { deliveries } from './schema/deliveries.js';
 import { attempts } from './schema/attempts.js';
 import { apiKeys } from './schema/apiKeys.js';
+import { DeliveryStatus } from '../utils/enums.js';
 import crypto from 'crypto';
 import fs from 'node:fs';
 import { encryptSecret, generateWebhookSecret } from '../utils/crypto.js';
@@ -103,11 +104,11 @@ async function seed() {
 
     // --- deliveries ---
     const insertedDeliveries = await db.insert(deliveries).values([
-        { eventId: testEvent.id, endpointId: acmePrimary.id, status: 'success' },
-        { eventId: testEvent.id, endpointId: acmeBackup.id, status: 'failed' },
-        { eventId: orderEvent.id, endpointId: acmePrimary.id, status: null },
-        { eventId: signupEvent.id, endpointId: globexMain.id, status: 'success' },
-        { eventId: invoiceEvent.id, endpointId: initechMain.id, status: 'failed' },
+        { eventId: testEvent.id, endpointId: acmePrimary.id, status: DeliveryStatus.SUCCESS },
+        { eventId: testEvent.id, endpointId: acmeBackup.id, status: DeliveryStatus.FAILED },
+        { eventId: orderEvent.id, endpointId: acmePrimary.id, status: DeliveryStatus.PENDING },
+        { eventId: signupEvent.id, endpointId: globexMain.id, status: DeliveryStatus.SUCCESS },
+        { eventId: invoiceEvent.id, endpointId: initechMain.id, status: DeliveryStatus.FAILED },
     ]).returning();
     console.log(`Inserted ${insertedDeliveries.length} deliveries`);
 

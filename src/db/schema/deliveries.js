@@ -6,8 +6,8 @@ export const deliveries = pgTable("deliveries", (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
     status: t.varchar({
         length: 20,
-        enum: ["failed", "success"]
-    }),
+        enum: ["pending", "failed", "success"]
+    }).notNull().default("pending"),
     eventId: t.integer("event_id").references(() => events.id),
     endpointId: t.integer("endpoint_id").references(() => endpoints.id),
     createdAt: t.timestamp("created_at").notNull().defaultNow(),

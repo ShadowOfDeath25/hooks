@@ -4,7 +4,7 @@ import { attempts } from '../../db/schema/attempts.js';
 import { deliveries } from '../../db/schema/deliveries.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 import { decryptSecret as decryptSecretKey, createWebhookSignature } from '../../utils/crypto.js';
-import { DeliveryClassification } from '../../utils/enums.js';
+import { DeliveryClassification, DeliveryStatus } from '../../utils/enums.js';
 import { UnrecoverableError } from 'bullmq';
 
 /**
@@ -181,13 +181,17 @@ export function createDeliveryProcessor({
         const maxAttempts = job.opts?.attempts || 1;
         const attemptsLeft = maxAttempts - ((job.attemptsMade || 0) + 1);
         
-        let deliveryStatus = null;
-        if (classification === DeliveryClassification.SUCCESS) {
-            deliveryStatus = 'success';
-        } else if (classification === DeliveryClassification.RETRIABLE && attemptsLeft > 0) {
-            deliveryStatus = null; // Stays pending
-        } else {
-            deliveryStatus = 'failed'; // Exhausted OR Terminal
+        let deliveryStatus;
+        switch (true) {
+            case classification === DeliveryClassification.SUCCESS:
+                deliveryStatus = DeliveryStatus.SUCCESS;
+                break;
+            case classification === DeliveryClassification.RETRIABLE && attemptsLeft > 0:
+                deliveryStatus = DeliveryStatus.PENDING; // Stays pending
+                break;
+            default:
+                deliveryStatus = DeliveryStatus.FAILED; // Exhausted OR Terminal
+                break;
         }
 
         // 3. Save to Database
@@ -199,26 +203,30 @@ export function createDeliveryProcessor({
         });
 
         // 4. Update Endpoint Health (Only on Terminal Failure)
-        if (deliveryStatus === 'failed') {
+        if (deliveryStatus === DeliveryStatus.FAILED) {
             await verifyAndDisable(endpointId);
         }
 
         // 5. Trigger BullMQ Routing
-        if (classification === DeliveryClassification.RETRIABLE && attemptsLeft > 0) {
-            const errorMsg = requestError 
-                ? `Delivery ${context.deliveryId} retrying (Network error: ${requestError.message})`
-                : `Delivery ${context.deliveryId} retrying. HTTP ${statusCode}`;
-            throw new Error(errorMsg);
-        } else if (classification === DeliveryClassification.TERMINAL) {
-            const errorMsg = requestError
-                ? `Delivery ${context.deliveryId} terminal failure (Network error: ${requestError.message})`
-                : `Delivery ${context.deliveryId} terminal failure. HTTP ${statusCode}`;
-            throw new UnrecoverableError(errorMsg);
-        } else if (classification === DeliveryClassification.RETRIABLE && attemptsLeft <= 0) {
-            const errorMsg = requestError
-                ? `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts (Network error: ${requestError.message})`
-                : `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts. HTTP ${statusCode}`;
-            throw new UnrecoverableError(errorMsg);
+        switch (true) {
+            case classification === DeliveryClassification.RETRIABLE && attemptsLeft > 0: {
+                const errorMsg = requestError 
+                    ? `Delivery ${context.deliveryId} retrying (Network error: ${requestError.message})`
+                    : `Delivery ${context.deliveryId} retrying. HTTP ${statusCode}`;
+                throw new Error(errorMsg);
+            }
+            case classification === DeliveryClassification.TERMINAL: {
+                const errorMsg = requestError
+                    ? `Delivery ${context.deliveryId} terminal failure (Network error: ${requestError.message})`
+                    : `Delivery ${context.deliveryId} terminal failure. HTTP ${statusCode}`;
+                throw new UnrecoverableError(errorMsg);
+            }
+            case classification === DeliveryClassification.RETRIABLE && attemptsLeft <= 0: {
+                const errorMsg = requestError
+                    ? `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts (Network error: ${requestError.message})`
+                    : `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts. HTTP ${statusCode}`;
+                throw new UnrecoverableError(errorMsg);
+            }
         }
 
         return {
