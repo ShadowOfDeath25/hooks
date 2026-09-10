@@ -1,6 +1,6 @@
-import { Worker, Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import { Worker } from 'bullmq';
 import * as dotenv from 'dotenv';
+import { QUEUE_NAME, workerConnection } from './queue/queue.js';
 import {
     createDeliveryProcessor,
     findDeliveryContext,
@@ -8,21 +8,9 @@ import {
 } from './routes/deliveries/deliveries.services.js';
 dotenv.config();
 
-if (!process.env.REDIS_URL) {
-    throw new Error('REDIS_URL is missing in environment variables');
-}
-
-const connection = new IORedis(process.env.REDIS_URL, {
-    maxRetriesPerRequest: null,
-});
-
-connection.on('error', (err) => {
-    console.error('[Redis] Connection error:', err.message);
-});
-
-const QUEUE_NAME = 'dummyQueue';
-
-export const dummyQueue = new Queue(QUEUE_NAME, { connection });
+console.log('[Worker] Starting up...');
+console.log('[Worker] Using connection:', workerConnection);
+console.log('[Worker] Starting with queue:', QUEUE_NAME);
 
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
@@ -32,8 +20,15 @@ const processDelivery = createDeliveryProcessor({
 const worker = new Worker(
     QUEUE_NAME,
     processDelivery,
-    { connection }
+    { 
+        connection: workerConnection,  
+        concurrency: parseInt(process.env.WORKER_CONCURRENCY) || 1
+    }
 );
+
+console.log('[Worker] Worker initialized and ready to process jobs.');
+console.log('[Worker] worker with concurrency:', worker.concurrency);
+console.log('[Worker] Worker setup complete.');
 
 worker.on('completed', (job, returnvalue) => {
     console.log(`[Worker] Job ${job.id} completed! Result:`, returnvalue);

@@ -1,6 +1,6 @@
 import { eq ,and } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { dummyQueue } from '../../worker.js';
+import { QUEUE_NAME, deliveryQueue } from '../../queue/queue.js';
 import { events } from '../../db/schema/events.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 import { validatePayload } from './events.services.js';
@@ -74,9 +74,9 @@ export async function createEvent(request, reply) {
         };
     });
 
-    const jobs = await dummyQueue.addBulk( 
+    const jobs = await deliveryQueue.addBulk( 
         consumerEndpoints.map((endpoint) => ({
-            name: 'dummyQueue',
+            name: QUEUE_NAME,
             data:{
                 eventId,
                 endpointId: endpoint.id,

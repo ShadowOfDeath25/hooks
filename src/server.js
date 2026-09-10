@@ -2,8 +2,7 @@ import Fastify from 'fastify'
 import Autoload from '@fastify/autoload'
 import * as path from "node:path";
 import {fileURLToPath} from "node:url";
-import './worker.js'; // Start the worker
-import { dummyQueue } from './worker.js';
+import { deliveryQueue } from './queue/queue.js';
 
 const fastify = Fastify({
     logger: true
@@ -27,7 +26,7 @@ fastify.get('/', async function (request, reply) {
 fastify.post('/test-job', async function (request, reply) {
     try {
         // Add a dummy job to the queue
-        const job = await dummyQueue.add('testJob', {
+        const job = await deliveryQueue.add('testJob', {
             message: 'Hello from Fastify API!',
             timestamp: Date.now()
         });
