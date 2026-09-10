@@ -1,13 +1,13 @@
-import { eq ,and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { dummyQueue } from '../../worker.js';
 import { events } from '../../db/schema/events.js';
 import { endpoints } from '../../db/schema/endpoints.js';
-import { validatePayload } from './events.services.js';
 import { deliveries } from '../../db/schema/deliveries.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { DBError } from '../../errors/DBError.js';
 import { QueueError } from '../../errors/QueueError.js';
+import { validatePayload } from './events.services.js';
 
 export async function createEvent(request, reply) {
     const payload = request.body;
@@ -21,7 +21,6 @@ export async function createEvent(request, reply) {
     });
 
     await validatePayload(payload);
-
 
     const {eventId, consumerEndpoints} = await db.transaction(async (tx) => {
         const [createdEvent] = await tx.insert(events).values({
@@ -43,7 +42,13 @@ export async function createEvent(request, reply) {
 
         const consumerEndpoints = await tx.select()
             .from(endpoints)
-            .where(and(eq(endpoints.consumerId, consumerID), eq(endpoints.isActive, true)));
+            .where(
+                and(
+                    eq(endpoints.consumerId, consumerID), 
+                    eq(endpoints.isActive, true),
+                    isNull(endpoints.deletedAt)
+                )
+            );
 
         if (consumerEndpoints.length === 0) {
             throw new NotFoundError(`No endpoints found for consumer ID ${consumerID}`);
@@ -52,8 +57,7 @@ export async function createEvent(request, reply) {
         const deliveryRecords = await tx.insert(deliveries).values(
             consumerEndpoints.map((endpoint) => ({
                 eventId: createdEvent.id,
-                endpointId: endpoint.id,
-                status: 'pending'
+                endpointId: endpoint.id
             }))
         ).returning();
 
@@ -74,6 +78,8 @@ export async function createEvent(request, reply) {
         };
     });
 
+    const MAX_ATTEMPTS = Number(process.env.RETRY_MAX_ATTEMPTS) || 5;
+
     const jobs = await dummyQueue.addBulk( 
         consumerEndpoints.map((endpoint) => ({
             name: 'dummyQueue',
@@ -81,6 +87,10 @@ export async function createEvent(request, reply) {
                 eventId,
                 endpointId: endpoint.id,
                 payload: eventData,
+            },
+            opts: {
+                attempts: MAX_ATTEMPTS,
+                backoff: { type: 'webhookExponential' }
             }
         }))
     );
@@ -89,10 +99,8 @@ export async function createEvent(request, reply) {
         throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
     }
 
-    await db
-        .update(deliveries)
-        .set({ status: 'enqueued' })
-        .where(eq(deliveries.eventId, eventId));
+    // Removed the manual DB update to 'enqueued' here since the default is now null
+    // and we let the worker handle success/failed terminal states natively.
 
     return reply.code(201).send({
         success: true,
@@ -108,9 +116,8 @@ export async function getEventDetails(request, reply) {
     const eventDeliveries = await db.select().from(deliveries).where(eq(deliveries.eventId, parseInt(eventId)));
     const summary = { 
         total: eventDeliveries.length,
-        pending: eventDeliveries.filter(delivery => delivery.status === 'pending').length,
-        enqueued: eventDeliveries.filter(delivery => delivery.status === 'enqueued').length,
-        delivered: eventDeliveries.filter(delivery => delivery.status === 'delivered').length,
+        pending: eventDeliveries.filter(delivery => delivery.status === null).length,
+        success: eventDeliveries.filter(delivery => delivery.status === 'success').length,
         failed: eventDeliveries.filter(delivery => delivery.status === 'failed').length
      }; 
 

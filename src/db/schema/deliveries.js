@@ -6,12 +6,13 @@ export const deliveries = pgTable("deliveries", (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
     status: t.varchar({
         length: 20,
-        enum: ["pending", "enqueued", "failed", "success"]
+        enum: ["failed", "success"]
     }),
     eventId: t.integer("event_id").references(() => events.id),
     endpointId: t.integer("endpoint_id").references(() => endpoints.id),
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
 }), (table) => [
     index("deliveries_event_id_fk_idx").on(table.eventId),
+    index("deliveries_endpoint_id_desc_idx").on(table.endpointId, table.id.desc()),
 
 ])

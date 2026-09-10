@@ -105,7 +105,7 @@ async function seed() {
     const insertedDeliveries = await db.insert(deliveries).values([
         { eventId: testEvent.id, endpointId: acmePrimary.id, status: 'success' },
         { eventId: testEvent.id, endpointId: acmeBackup.id, status: 'failed' },
-        { eventId: orderEvent.id, endpointId: acmePrimary.id, status: 'pending' },
+        { eventId: orderEvent.id, endpointId: acmePrimary.id, status: null },
         { eventId: signupEvent.id, endpointId: globexMain.id, status: 'success' },
         { eventId: invoiceEvent.id, endpointId: initechMain.id, status: 'failed' },
     ]).returning();

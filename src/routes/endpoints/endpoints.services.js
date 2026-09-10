@@ -1,7 +1,20 @@
 import { endpoints } from '../../db/schema/endpoints.js';
+import { deliveries } from '../../db/schema/deliveries.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull, desc, count } from 'drizzle-orm';
 import { NotFoundError } from '../../errors/NotFoundError.js';
+import { ConflictError } from '../../errors/ConflictError.js';
+
+const endpointSelectFields = {
+    id: endpoints.id,
+    label: endpoints.label,
+    url: endpoints.url,
+    consumerId: endpoints.consumerId,
+    isActive: endpoints.isActive,
+    createdAt: endpoints.createdAt,
+    updatedAt: endpoints.updatedAt,
+    deletedAt: endpoints.deletedAt
+};
 
 export async function createEndpointService(db, label, url, consumerId) {
 
@@ -19,20 +32,12 @@ export async function createEndpointService(db, label, url, consumerId) {
         consumerId,
         signingKey: encryptedBuffer, // Store the bytea buffer, NOT the text!
         isActive: true
-    }).returning({
-        id: endpoints.id,
-        label: endpoints.label,
-        url: endpoints.url,
-        consumerId: endpoints.consumerId,
-        isActive: endpoints.isActive,
-        createdAt: endpoints.createdAt,
-        updatedAt: endpoints.updatedAt
-    });
+    }).returning(endpointSelectFields);
 
     return { newEndpoint, plainTextSecret };
 }
 
-export async function getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive = false) {
+export async function getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive = false, includeDeleted = false) {
     // Construct the where clause dynamically based on provided filters
     let filters = [];
     if (consumerId !== undefined) {
@@ -42,26 +47,21 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
     if (!includeInactive) {
         filters.push(eq(endpoints.isActive, true));
     }
+    if (!includeDeleted) {
+        filters.push(isNull(endpoints.deletedAt));
+    }
     const filterCondition = filters.length > 0 ? and(...filters) : undefined;
 
     // Execute both the data query and the count query in parallel for max performance
     const [consumerEndpoints, [{ total }]] = await Promise.all([
-        db.select({
-            id: endpoints.id,
-            label: endpoints.label,
-            url: endpoints.url,
-            consumerId: endpoints.consumerId,
-            isActive: endpoints.isActive,
-            createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt
-        })
+        db.select(endpointSelectFields)
         .from(endpoints)
         .where(filterCondition)
         .orderBy(endpoints.createdAt)
         .limit(limit)
         .offset(offset),
         
-        db.select({ total: sql`count(*)`.mapWith(Number) })
+        db.select({ total: count() })
           .from(endpoints)
           .where(filterCondition)
     ]);
@@ -76,7 +76,9 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
     const safeUpdateData = {};
     if (updateData.label !== undefined) safeUpdateData.label = updateData.label;
     if (updateData.url !== undefined) safeUpdateData.url = updateData.url;
-    if (updateData.isActive !== undefined) safeUpdateData.isActive = updateData.isActive;
+    if (updateData.isActive !== undefined) {
+        safeUpdateData.isActive = updateData.isActive;
+    }
     
     // Always update the timestamp when modifying the record
     safeUpdateData.updatedAt = new Date();
@@ -86,19 +88,11 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
         .where(
             and(
                 eq(endpoints.id, id),
-                isNull(endpoints.deletedAt),
-                eq(endpoints.consumerId, consumerId) // Ensure they actually own this endpoint!
+                eq(endpoints.consumerId, consumerId), // Ensure they actually own this endpoint!
+                isNull(endpoints.deletedAt)
             )
         )
-        .returning({
-            id: endpoints.id,
-            label: endpoints.label,
-            url: endpoints.url,
-            consumerId: endpoints.consumerId,
-            isActive: endpoints.isActive,
-            createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt
-        });
+        .returning(endpointSelectFields);
 
     if (!updatedEndpoint) {
         throw new NotFoundError('Endpoint not found or you do not have permission to modify it.');
@@ -108,33 +102,86 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
 }
 
 export async function deleteEndpointService(db, id, consumerId) {
-    // Perform a soft-delete by updating deletedAt and isActive.
+    // Perform a soft-delete by setting deletedAt and isActive to false
     const [deletedEndpoint] = await db.update(endpoints)
         .set({ 
-            isActive: false,
+            isActive: false, 
             deletedAt: new Date(),
             updatedAt: new Date() 
         })
         .where(
             and(
                 eq(endpoints.id, id),
-                isNull(endpoints.deletedAt),
-                eq(endpoints.consumerId, consumerId) // Ensure they own this endpoint!
+                eq(endpoints.consumerId, consumerId), // Ensure they own this endpoint!
+                isNull(endpoints.deletedAt)
             )
         )
-        .returning({
-            id: endpoints.id,
-            label: endpoints.label,
-            url: endpoints.url,
-            consumerId: endpoints.consumerId,
-            isActive: endpoints.isActive,
-            createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt
-        });
+        .returning(endpointSelectFields);
 
     if (!deletedEndpoint) {
         throw new NotFoundError('Endpoint not found or you do not have permission to delete it.');
     }
 
     return deletedEndpoint;
+}
+
+export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
+    // 1. Subquery to get the last `threshold` deliveries for this endpoint
+    const recentDeliveries = db
+        .select({ status: deliveries.status })
+        .from(deliveries)
+        .where(eq(deliveries.endpointId, endpointId))
+        .orderBy(desc(deliveries.id))
+        .limit(threshold)
+        .as('recent_deliveries');
+
+    // 2. Count failed deliveries directly in the database query
+    const [{ failedCount }] = await db
+        .select({ failedCount: count() })
+        .from(recentDeliveries)
+        .where(eq(recentDeliveries.status, 'failed'));
+
+    // 3. Auto-disable if all of the last `threshold` deliveries are failed
+    if (failedCount >= threshold) {
+        const [updated] = await db.update(endpoints)
+            .set({ isActive: false })
+            .where(eq(endpoints.id, endpointId))
+            .returning({ isActive: endpoints.isActive });
+        return updated;
+    }
+
+    return { isActive: true };
+}
+
+export async function restoreEndpointService(db, id, consumerId) {
+    // 1. Fetch the deleted endpoint to get its URL
+    const [targetEndpoint] = await db.select({ url: endpoints.url, deletedAt: endpoints.deletedAt })
+        .from(endpoints)
+        .where(
+            and(
+                eq(endpoints.id, id),
+                eq(endpoints.consumerId, consumerId)
+            )
+        );
+
+    if (!targetEndpoint) {
+        throw new NotFoundError('Endpoint not found or you do not have permission to restore it.');
+    }
+
+    if (!targetEndpoint.deletedAt) {
+        // It's already active, no need to restore
+        throw new ConflictError('Endpoint is already active and not deleted.');
+    }
+
+    // 2. Perform the Restore
+    const [restoredEndpoint] = await db.update(endpoints)
+        .set({ 
+            isActive: true, 
+            deletedAt: null,
+            updatedAt: new Date() 
+        })
+        .where(eq(endpoints.id, id))
+        .returning(endpointSelectFields);
+
+    return restoredEndpoint;
 }

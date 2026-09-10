@@ -1,9 +1,17 @@
 export const createEndpointSchema = {
     // Fastify uses AJV for built-in, high-performance input validation.
+    params: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['consumerId'],
+        properties: {
+            consumerId: { type: 'integer', minimum: 1 }
+        }
+    },
     body: {
         type: 'object',
         additionalProperties: false,
-        required: ['label', 'url', 'consumerId'],
+        required: ['label', 'url'],
         properties: {
             label: { type: 'string', minLength: 1, maxLength: 255 },
             // Use a strict Regex pattern to guarantee it starts with http:// or https://
@@ -11,8 +19,7 @@ export const createEndpointSchema = {
                 type: 'string', 
                 pattern: '^https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}(\\.[a-zA-Z0-9()]{1,6})?([-a-zA-Z0-9()@:%_+.~#?&/=]*)$',
                 maxLength: 255 
-            },
-            consumerId: { type: 'integer', minimum: 1 }
+            }
         }
     },
     // The response schema acts as a strict whitelist, preventing accidental data leaks
@@ -29,6 +36,7 @@ export const createEndpointSchema = {
                 isActive: { type: 'boolean' },
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
+                deletedAt: { type: 'string', format: 'date-time', nullable: true },
                 secret: { type: 'string' }
             }
         }
@@ -36,14 +44,22 @@ export const createEndpointSchema = {
 };
 
 export const listEndpointsSchema = {
+    params: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['consumerId'],
+        properties: {
+            consumerId: { type: 'integer', minimum: 1 }
+        }
+    },
     querystring: {
         type: 'object',
         additionalProperties: false,
         properties: {
-            consumerId: { type: 'integer', minimum: 1 },
             limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
             offset: { type: 'integer', minimum: 0, default: 0 },
-            includeInactive: { type: 'boolean', default: false }
+            includeInactive: { type: 'boolean', default: false },
+            includeDeleted: { type: 'boolean', default: false }
         }
     },
     // Response schema strictly whitelists safe fields (excludes signingKey)
@@ -64,7 +80,8 @@ export const listEndpointsSchema = {
                             consumerId: { type: 'integer', minimum: 1 },
                             isActive: { type: 'boolean' },
                             createdAt: { type: 'string', format: 'date-time' },
-                            updatedAt: { type: 'string', format: 'date-time', nullable: true }
+                            updatedAt: { type: 'string', format: 'date-time', nullable: true },
+                            deletedAt: { type: 'string', format: 'date-time', nullable: true }
                         }
                     }
                 },
@@ -79,17 +96,9 @@ export const updateEndpointSchema = {
     params: {
         type: 'object',
         additionalProperties: false,
-        required: ['id'],
+        required: ['id', 'consumerId'],
         properties: {
-            id: { type: 'integer', minimum: 1 }
-        }
-    },
-    // Require the consumerId in the query to prove ownership
-    querystring: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['consumerId'],
-        properties: {
+            id: { type: 'integer', minimum: 1 },
             consumerId: { type: 'integer', minimum: 1 }
         }
     },
@@ -120,7 +129,8 @@ export const updateEndpointSchema = {
                 consumerId: { type: 'integer' },
                 isActive: { type: 'boolean' },
                 createdAt: { type: 'string', format: 'date-time' },
-                updatedAt: { type: 'string', format: 'date-time', nullable: true }
+                updatedAt: { type: 'string', format: 'date-time', nullable: true },
+                deletedAt: { type: 'string', format: 'date-time', nullable: true }
             }
         }
     }
@@ -131,17 +141,9 @@ export const deleteEndpointSchema = {
     params: {
         type: 'object',
         additionalProperties: false,
-        required: ['id'],
+        required: ['id', 'consumerId'],
         properties: {
-            id: { type: 'integer', minimum: 1 }
-        }
-    },
-    // Require the consumerId in the query to prove ownership
-    querystring: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['consumerId'],
-        properties: {
+            id: { type: 'integer', minimum: 1 },
             consumerId: { type: 'integer', minimum: 1 }
         }
     },
@@ -157,7 +159,8 @@ export const deleteEndpointSchema = {
                 consumerId: { type: 'integer' },
                 isActive: { type: 'boolean' },
                 createdAt: { type: 'string', format: 'date-time' },
-                updatedAt: { type: 'string', format: 'date-time', nullable: true }
+                updatedAt: { type: 'string', format: 'date-time', nullable: true },
+                deletedAt: { type: 'string', format: 'date-time', nullable: true }
             }
         }
     }
@@ -170,5 +173,33 @@ export const putEndpointSchema = {
         additionalProperties: false,
         required: ['label', 'url', 'isActive'],
         properties: updateEndpointSchema.body.properties
+    }
+};
+
+export const restoreEndpointSchema = {
+    params: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'consumerId'],
+        properties: {
+            id: { type: 'integer', minimum: 1 },
+            consumerId: { type: 'integer', minimum: 1 }
+        }
+    },
+    response: {
+        200: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                id: { type: 'integer' },
+                label: { type: 'string' },
+                url: { type: 'string' },
+                consumerId: { type: 'integer' },
+                isActive: { type: 'boolean' },
+                createdAt: { type: 'string', format: 'date-time' },
+                updatedAt: { type: 'string', format: 'date-time', nullable: true },
+                deletedAt: { type: 'string', format: 'date-time', nullable: true }
+            }
+        }
     }
 };
