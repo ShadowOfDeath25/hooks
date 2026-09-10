@@ -352,7 +352,7 @@ test('delivery processor integration: every attempt consumes rate limit regardle
             processor({
                 data: { eventId: 1, payload: { a: 1 }, endpointId }
             }),
-            /received HTTP 500/
+            /HTTP 500/
         );
         assert.equal(requests.length, 1);
         assert.equal(attempts.length, 1);

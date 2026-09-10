@@ -119,6 +119,26 @@ function serializePayload(payload) {
     return body;
 }
 
+export async function enforceRateLimit(rateLimiter, job, token, endpointId, now = Date.now) {
+    if (!rateLimiter) return;
+
+    if (await rateLimiter.allow(endpointId)) return;
+
+    const delayMs =
+        rateLimiter.delayMs ??
+        (typeof rateLimiter.getDelayMs === 'function'
+            ? rateLimiter.getDelayMs()
+            : null) ??
+        rateLimiter.windowMs ??
+        1000;
+
+    if (typeof job?.moveToDelayed === 'function') {
+        await job.moveToDelayed(now() + delayMs, token);
+    }
+
+    throw new DelayedError();
+}
+
 export function createDeliveryProcessor({
     findContext,
     saveAttempt,
@@ -145,24 +165,8 @@ export function createDeliveryProcessor({
 
         const startedAt = now();
 
-        if (rateLimiter) {
-            const isAllowed = await rateLimiter.allow(endpointId);
-            if (!isAllowed) {
-                const delayMs =
-                    rateLimiter.delayMs ??
-                    (typeof rateLimiter.getDelayMs === 'function'
-                        ? rateLimiter.getDelayMs()
-                        : null) ??
-                    rateLimiter.windowMs ??
-                    1000;
+        await enforceRateLimit(rateLimiter, job, token, endpointId, now);
 
-                if (typeof job?.moveToDelayed === 'function') {
-                    await job.moveToDelayed(now() + delayMs, token);
-                }
-
-                throw new DelayedError();
-            }
-        }
         let statusCode = 0;
         let requestError;
 
@@ -220,7 +224,7 @@ export function createDeliveryProcessor({
         });
 
         // 4. Update Endpoint Health (Only on Terminal Failure)
-        if (deliveryStatus === 'failed') {
+        if (deliveryStatus === 'failed' && typeof verifyAndDisable === 'function') {
             await verifyAndDisable(endpointId);
         }
 
