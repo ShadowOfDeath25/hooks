@@ -68,9 +68,7 @@ function getProcessingKey(request) {
 
   return `${path}:${eventId}`;
 }
-function getRetryKey(request) {
-  return getProcessingKey(request);
-}
+
 function verifyEventId(request, reply, done) {
   const eventId = request.headers["event-id"];
 
@@ -348,7 +346,7 @@ fastify.post(
 ]
   },
   async (request, reply) => {
-    const retryKey = getRetryKey(request);
+    const retryKey = getProcessingKey(request);
 
     const attempt =
       (attempts.get(retryKey) ?? 0) + 1;
