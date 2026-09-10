@@ -4,7 +4,6 @@ import { consumers } from '../../db/schema/consumers.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { InvalidRequestError } from '../../errors/InvalidRequestError.js';
 
-
 // initial validation is done by fastify schema validation
 export async function validatePayload(payload) {
     const { consumerID, eventData } = payload;

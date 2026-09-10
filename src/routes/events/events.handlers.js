@@ -53,7 +53,7 @@ export async function createEvent(request, reply) {
             consumerEndpoints.map((endpoint) => ({
                 eventId: createdEvent.id,
                 endpointId: endpoint.id,
-                status: 'pending'
+                status: 'enqueued'
             }))
         ).returning();
 
@@ -78,7 +78,7 @@ export async function createEvent(request, reply) {
         consumerEndpoints.map((endpoint) => ({
             name: QUEUE_NAME,
             data:{
-                eventId,
+                eventId: eventId,
                 endpointId: endpoint.id,
                 payload: eventData,
             }
@@ -86,13 +86,12 @@ export async function createEvent(request, reply) {
     );
 
     if (jobs.length !== consumerEndpoints.length) {
+        await db.transaction(async (tx) => {  
+            await tx.delete(deliveries).where(eq(deliveries.eventId, eventId));
+            await tx.delete(events).where(eq(events.id, eventId));
+        });
         throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
     }
-
-    await db
-        .update(deliveries)
-        .set({ status: 'enqueued' })
-        .where(eq(deliveries.eventId, eventId));
 
     return reply.code(201).send({
         success: true,
