@@ -9,8 +9,6 @@ import {
 dotenv.config();
 
 console.log('[Worker] Starting up...');
-console.log('[Worker] Using connection:', workerConnection);
-console.log('[Worker] Starting with queue:', QUEUE_NAME);
 
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
@@ -26,9 +24,8 @@ const worker = new Worker(
     }
 );
 
-console.log('[Worker] Worker initialized and ready to process jobs.');
 console.log('[Worker] worker with concurrency:', worker.concurrency);
-console.log('[Worker] Worker setup complete.');
+console.log('[Worker] Worker initialized and ready to process jobs.');
 
 worker.on('completed', (job, returnvalue) => {
     console.log(`[Worker] Job ${job.id} completed! Result:`, returnvalue);
