@@ -48,7 +48,7 @@ export const rateLimiter = createWebhookRateLimiter({ connection });
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
     saveAttempt: recordDeliveryAttempt,
-    rateLimiter
+    rateLimiter,
     verifyAndDisable: (endpointId) => verifyAndAutoDisableEndpointService(db, endpointId, Number(process.env.WEBHOOK_MAX_FAILURES) || 5)
 });
 
