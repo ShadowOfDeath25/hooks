@@ -7,6 +7,11 @@ import {
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
 import { createWebhookRateLimiter } from './utils/rateLimiter.js';
+import { db } from './db/index.js';
+import {
+    verifyAndAutoDisableEndpointService
+} from './routes/endpoints/endpoints.services.js';
+
 dotenv.config();
 
 if (!process.env.REDIS_URL) {
@@ -21,6 +26,19 @@ connection.on('error', (err) => {
     console.error('[Redis] Connection error:', err.message);
 });
 
+const RETRY_BASE_DELAY = Number(process.env.RETRY_BASE_DELAY) || 1000;
+const RETRY_MULTIPLIER = Number(process.env.RETRY_MULTIPLIER) || 2;
+const RETRY_MAX_DELAY = Number(process.env.RETRY_MAX_DELAY) || 3600000; // Default to 1 hour
+
+const customBackoffStrategy = (attemptsMade, type, err, job) => {
+    if (type === 'webhookExponential') {
+        const baseDelay = RETRY_BASE_DELAY * Math.pow(RETRY_MULTIPLIER, attemptsMade - 1);
+        const cappedDelay = Math.min(baseDelay, RETRY_MAX_DELAY);
+        return Math.floor(cappedDelay * (0.5 + Math.random() * 0.5)); // ±50% jitter
+    }
+    return 1000;
+};
+
 const QUEUE_NAME = 'dummyQueue';
 
 export const dummyQueue = new Queue(QUEUE_NAME, { connection });
@@ -31,12 +49,18 @@ const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
     saveAttempt: recordDeliveryAttempt,
     rateLimiter
+    verifyAndDisable: (endpointId) => verifyAndAutoDisableEndpointService(db, endpointId, Number(process.env.WEBHOOK_MAX_FAILURES) || 5)
 });
 
 const worker = new Worker(
     QUEUE_NAME,
     processDelivery,
-    { connection }
+    { 
+        connection,
+        settings: {
+            backoffStrategy: customBackoffStrategy
+        }
+    }
 );
 
 worker.on('completed', (job, returnvalue) => {
