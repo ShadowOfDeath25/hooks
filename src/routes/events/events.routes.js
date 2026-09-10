@@ -1,4 +1,4 @@
-import { createEvent } from './events.services.js';
+import { createEvent } from './events.handlers.js';
 import { eventBodySchema } from './events.schemas.js';
 
 export default async function eventRoutes(fastify) {
