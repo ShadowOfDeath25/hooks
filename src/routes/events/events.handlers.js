@@ -58,7 +58,6 @@ export async function createEvent(request, reply) {
             consumerEndpoints.map((endpoint) => ({
                 eventId: createdEvent.id,
                 endpointId: endpoint.id,
-                status: 'pending'
             }))
         ).returning();
 
