@@ -20,6 +20,7 @@ async function clear() {
     await db.delete(endpoints);
     await db.delete(consumers);
     await db.delete(apiKeys);
+
     console.log('Cleared existing data');
 }
 

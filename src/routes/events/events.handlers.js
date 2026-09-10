@@ -101,3 +101,34 @@ export async function createEvent(request, reply) {
     });
 }
 
+export async function getEventDetails(request, reply) {
+    const { eventId } = request.params;
+
+    const event = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+    const eventDeliveries = await db.select().from(deliveries).where(eq(deliveries.eventId, parseInt(eventId)));
+    const summary = { 
+        total: eventDeliveries.length,
+        pending: eventDeliveries.filter(delivery => delivery.status === 'pending').length,
+        enqueued: eventDeliveries.filter(delivery => delivery.status === 'enqueued').length,
+        delivered: eventDeliveries.filter(delivery => delivery.status === 'delivered').length,
+        failed: eventDeliveries.filter(delivery => delivery.status === 'failed').length
+     }; 
+
+    console.log('[Events] Fetched event details:', {
+        eventId,
+        event: event,
+        deliveries: eventDeliveries,
+        summary: summary
+    });
+
+    if (event.length === 0) {
+        throw new NotFoundError(`Event with ID ${eventId} does not exist`);
+    }
+
+    return reply.code(200).send({
+        success: true,
+        event: event[0],
+        deliveries: eventDeliveries,
+        summary: summary
+    });
+}
