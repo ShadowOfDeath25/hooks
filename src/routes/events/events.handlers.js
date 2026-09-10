@@ -8,6 +8,7 @@ import { NotFoundError } from '../../errors/NotFoundError.js';
 import { DBError } from '../../errors/DBError.js';
 import { QueueError } from '../../errors/QueueError.js';
 import { validatePayload } from './events.services.js';
+import { DeliveryStatus } from '../../utils/enums.js';
 
 export async function createEvent(request, reply) {
     const payload = request.body;
@@ -116,9 +117,9 @@ export async function getEventDetails(request, reply) {
     const eventDeliveries = await db.select().from(deliveries).where(eq(deliveries.eventId, parseInt(eventId)));
     const summary = { 
         total: eventDeliveries.length,
-        pending: eventDeliveries.filter(delivery => delivery.status === null).length,
-        success: eventDeliveries.filter(delivery => delivery.status === 'success').length,
-        failed: eventDeliveries.filter(delivery => delivery.status === 'failed').length
+        pending: eventDeliveries.filter(delivery => delivery.status === DeliveryStatus.PENDING).length,
+        success: eventDeliveries.filter(delivery => delivery.status === DeliveryStatus.SUCCESS).length,
+        failed: eventDeliveries.filter(delivery => delivery.status === DeliveryStatus.FAILED).length
      }; 
 
     console.log('[Events] Fetched event details:', {

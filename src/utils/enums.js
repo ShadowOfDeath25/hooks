@@ -3,3 +3,9 @@ export const DeliveryClassification = Object.freeze({
     RETRIABLE: 'retriable',
     TERMINAL: 'terminal'
 });
+
+export const DeliveryStatus = Object.freeze({
+    PENDING: 'pending',
+    SUCCESS: 'success',
+    FAILED: 'failed'
+});
