@@ -33,7 +33,7 @@ services:
 
   mock-server:
     build: .
-    command: npm run mock
+    command: npm run mock:dev
     environment:
       MOCK_PORT: "${MOCK_PORT:-4000}"
       MOCK_TIMEOUT_MS: "${MOCK_TIMEOUT_MS:-10000}"
