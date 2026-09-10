@@ -4,6 +4,23 @@ import { deliveries } from '../../db/schema/deliveries.js';
 import { attempts } from '../../db/schema/attempts.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 
+const deliveryDetailsFields = {
+    id: deliveries.id,
+    status: deliveries.status,
+    eventId: deliveries.eventId,
+    endpointId: deliveries.endpointId,
+    createdAt: deliveries.createdAt
+};
+
+const deliveryAttemptsFields = {
+    id: attempts.id,
+    deliveryId: attempts.deliveryId,
+    duration: attempts.duration,
+    statusCode: attempts.statusCode,
+    retrialNumber: attempts.retrialNumber,
+    createdAt: attempts.createdAt
+};
+
 /**
  * Retrieves a delivery and its recorded delivery attempts.
  *
@@ -13,8 +30,13 @@ import { endpoints } from '../../db/schema/endpoints.js';
  */
 export async function getDeliveryDetails(request, reply) {
     const { deliveryId } = request.params;
-    const [delivery] = await db.select().from(deliveries).where(eq(deliveries.id, parseInt(deliveryId))).limit(1);
-    const deliveryAttempts = await db.select().from(attempts).where(eq(attempts.deliveryId, parseInt(deliveryId))); 
+    const [delivery] = await db.select(deliveryDetailsFields)
+        .from(deliveries)
+        .where(eq(deliveries.id, parseInt(deliveryId)))
+        .limit(1);
+    const deliveryAttempts = await db.select(deliveryAttemptsFields)
+        .from(attempts)
+        .where(eq(attempts.deliveryId, parseInt(deliveryId))); 
 
     if (!delivery) {
         return reply.code(404).send({
