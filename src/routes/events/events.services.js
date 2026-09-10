@@ -4,6 +4,7 @@ import { consumers } from '../../db/schema/consumers.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { InvalidRequestError } from '../../errors/InvalidRequestError.js';
 
+
 // initial validation is done by fastify schema validation
 export async function validatePayload(payload) {
     const { consumerID, eventData } = payload;
@@ -22,6 +23,7 @@ export async function validatePayload(payload) {
     
     // Validate that consumerID exists in DB
     const consumer = await db.select().from(consumers).where(eq(consumers.id, consumerID)).limit(1);
+
 
     if (consumer.length === 0) {
         throw new NotFoundError(`Consumer with ID ${consumerID} does not exist`);

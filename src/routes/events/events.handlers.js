@@ -57,7 +57,7 @@ export async function createEvent(request, reply) {
         const deliveryRecords = await tx.insert(deliveries).values(
             consumerEndpoints.map((endpoint) => ({
                 eventId: createdEvent.id,
-                endpointId: endpoint.id,
+                endpointId: endpoint.id
             }))
         ).returning();
 
@@ -99,19 +99,43 @@ export async function createEvent(request, reply) {
         throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
     }
 
-    await db
-        .update(deliveries)
-        .set({ status: 'enqueued' })
-        .where(
-            and(
-                eq(deliveries.eventId, eventId),
-                eq(deliveries.status, 'pending')
-            )
-        );
+    // Removed the manual DB update to 'enqueued' here since the default is now null
+    // and we let the worker handle success/failed terminal states natively.
 
     return reply.code(201).send({
         success: true,
         message: 'Event received',
         event_id: eventId
+    });
+}
+
+export async function getEventDetails(request, reply) {
+    const { eventId } = request.params;
+
+    const event = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+    const eventDeliveries = await db.select().from(deliveries).where(eq(deliveries.eventId, parseInt(eventId)));
+    const summary = { 
+        total: eventDeliveries.length,
+        pending: eventDeliveries.filter(delivery => delivery.status === null).length,
+        success: eventDeliveries.filter(delivery => delivery.status === 'success').length,
+        failed: eventDeliveries.filter(delivery => delivery.status === 'failed').length
+     }; 
+
+    console.log('[Events] Fetched event details:', {
+        eventId,
+        event: event,
+        deliveries: eventDeliveries,
+        summary: summary
+    });
+
+    if (event.length === 0) {
+        throw new NotFoundError(`Event with ID ${eventId} does not exist`);
+    }
+
+    return reply.code(200).send({
+        success: true,
+        event: event[0],
+        deliveries: eventDeliveries,
+        summary: summary
     });
 }
