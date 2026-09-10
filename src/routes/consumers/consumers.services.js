@@ -1,5 +1,6 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { activeConsumers, consumers } from '../../db/schema/consumers.js';
+import { endpoints } from '../../db/schema/endpoints.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 
 const consumerFields = {
@@ -80,16 +81,18 @@ export async function updateConsumerService(db, id, name) {
  * @throws {NotFoundError} If no active consumer has the supplied ID.
  */
 export async function deleteConsumerService(db, id) {
-	const [consumer] = await db.update(consumers)
-		.set({ deletedAt: new Date() })
-		.where(and(
-			eq(consumers.id, id),
-			inArray(
-				consumers.id,
-				db.select({ id: activeConsumers.id }).from(activeConsumers)
-			)
-		))
-		.returning(consumerFields);
+	return db.transaction(async (transaction) => {
+		const deletedAt = new Date();
+		const [consumer] = await transaction.update(consumers)
+			.set({ deletedAt })
+			.where(and(
+				eq(consumers.id, id),
+				inArray(
+					consumers.id,
+					transaction.select({ id: activeConsumers.id }).from(activeConsumers)
+				)
+			))
+			.returning(consumerFields);
 
 		if (!consumer) {
 			throw new NotFoundError('Consumer not found');
