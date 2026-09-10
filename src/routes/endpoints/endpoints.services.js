@@ -1,6 +1,6 @@
 import { endpoints } from '../../db/schema/endpoints.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 
 export async function createEndpointService(db, label, url, consumerId) {
@@ -38,6 +38,7 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
     if (consumerId !== undefined) {
         filters.push(eq(endpoints.consumerId, consumerId));
     }
+    filters.push(isNull(endpoints.deletedAt));
     if (!includeInactive) {
         filters.push(eq(endpoints.isActive, true));
     }
@@ -85,6 +86,7 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
         .where(
             and(
                 eq(endpoints.id, id),
+                isNull(endpoints.deletedAt),
                 eq(endpoints.consumerId, consumerId) // Ensure they actually own this endpoint!
             )
         )
@@ -106,15 +108,17 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
 }
 
 export async function deleteEndpointService(db, id, consumerId) {
-    // Perform a soft-delete by updating isActive to false
+    // Perform a soft-delete by updating deletedAt and isActive.
     const [deletedEndpoint] = await db.update(endpoints)
         .set({ 
-            isActive: false, 
+            isActive: false,
+            deletedAt: new Date(),
             updatedAt: new Date() 
         })
         .where(
             and(
                 eq(endpoints.id, id),
+                isNull(endpoints.deletedAt),
                 eq(endpoints.consumerId, consumerId) // Ensure they own this endpoint!
             )
         )
