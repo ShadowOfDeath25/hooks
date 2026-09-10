@@ -34,6 +34,8 @@ services:
   mock-server:
     build: .
     command: npm run mock:dev
+    env_file:
+      .env
     environment:
       MOCK_PORT: "${MOCK_PORT:-4000}"
       MOCK_TIMEOUT_MS: "${MOCK_TIMEOUT_MS:-10000}"
@@ -56,7 +58,9 @@ services:
   
   worker:
     build: .
-    command: npm run worker:dev
+    command: npm install && npm run worker:dev
+    env_file:
+      .env
     volumes:
       - .:/app
       - /app/node_modules
