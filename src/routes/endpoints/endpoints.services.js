@@ -5,6 +5,17 @@ import { eq, and, sql, isNull, desc, count } from 'drizzle-orm';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ConflictError } from '../../errors/ConflictError.js';
 
+const endpointSelectFields = {
+    id: endpoints.id,
+    label: endpoints.label,
+    url: endpoints.url,
+    consumerId: endpoints.consumerId,
+    isActive: endpoints.isActive,
+    createdAt: endpoints.createdAt,
+    updatedAt: endpoints.updatedAt,
+    deletedAt: endpoints.deletedAt
+};
+
 export async function createEndpointService(db, label, url, consumerId) {
 
     // 1. Generate the plain text secret for the user
@@ -21,16 +32,7 @@ export async function createEndpointService(db, label, url, consumerId) {
         consumerId,
         signingKey: encryptedBuffer, // Store the bytea buffer, NOT the text!
         isActive: true
-    }).returning({
-        id: endpoints.id,
-        label: endpoints.label,
-        url: endpoints.url,
-        consumerId: endpoints.consumerId,
-        isActive: endpoints.isActive,
-        createdAt: endpoints.createdAt,
-        updatedAt: endpoints.updatedAt,
-        deletedAt: endpoints.deletedAt
-    });
+    }).returning(endpointSelectFields);
 
     return { newEndpoint, plainTextSecret };
 }
@@ -51,16 +53,7 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
 
     // Execute both the data query and the count query in parallel for max performance
     const [consumerEndpoints, [{ total }]] = await Promise.all([
-        db.select({
-            id: endpoints.id,
-            label: endpoints.label,
-            url: endpoints.url,
-            consumerId: endpoints.consumerId,
-            isActive: endpoints.isActive,
-            createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt,
-            deletedAt: endpoints.deletedAt
-        })
+        db.select(endpointSelectFields)
         .from(endpoints)
         .where(filterCondition)
         .orderBy(endpoints.createdAt)
@@ -84,8 +77,6 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
     if (updateData.url !== undefined) safeUpdateData.url = updateData.url;
     if (updateData.isActive !== undefined) {
         safeUpdateData.isActive = updateData.isActive;
-        if (updateData.isActive === true) {
-        }
     }
     
     // Always update the timestamp when modifying the record
@@ -100,16 +91,7 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
                 isNull(endpoints.deletedAt)
             )
         )
-        .returning({
-            id: endpoints.id,
-            label: endpoints.label,
-            url: endpoints.url,
-            consumerId: endpoints.consumerId,
-            isActive: endpoints.isActive,
-            createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt,
-            deletedAt: endpoints.deletedAt
-        });
+        .returning(endpointSelectFields);
 
     if (!updatedEndpoint) {
         throw new NotFoundError('Endpoint not found or you do not have permission to modify it.');
@@ -133,16 +115,7 @@ export async function deleteEndpointService(db, id, consumerId) {
                 isNull(endpoints.deletedAt)
             )
         )
-        .returning({
-            id: endpoints.id,
-            label: endpoints.label,
-            url: endpoints.url,
-            consumerId: endpoints.consumerId,
-            isActive: endpoints.isActive,
-            createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt,
-            deletedAt: endpoints.deletedAt
-        });
+        .returning(endpointSelectFields);
 
     if (!deletedEndpoint) {
         throw new NotFoundError('Endpoint not found or you do not have permission to delete it.');
@@ -207,16 +180,7 @@ export async function restoreEndpointService(db, id, consumerId) {
             updatedAt: new Date() 
         })
         .where(eq(endpoints.id, id))
-        .returning({
-            id: endpoints.id,
-            label: endpoints.label,
-            url: endpoints.url,
-            consumerId: endpoints.consumerId,
-            isActive: endpoints.isActive,
-            createdAt: endpoints.createdAt,
-            updatedAt: endpoints.updatedAt,
-            deletedAt: endpoints.deletedAt
-        });
+        .returning(endpointSelectFields);
 
     return restoredEndpoint;
 }
