@@ -15,12 +15,20 @@ const SIGNING_SECRET = '_hs_delivery_test_secret';
 function createProcessor({ responseStatus, requestError } = {}) {
     const attempts = [];
     const requests = [];
+
     const times = [
         1_700_000_000_000,
         1_700_000_000_000,
-        1_700_000_000_125
-    ];
+        1_700_000_000_125,
 
+        1_700_000_001_000,
+        1_700_000_001_000,
+        1_700_000_001_125,
+
+        1_700_000_002_000,
+        1_700_000_002_000,
+        1_700_000_002_125
+    ];
     const processor = createDeliveryProcessor({
         findContext: async () => ({
             deliveryId: 42,
@@ -93,7 +101,51 @@ test('sends the signed payload and records a successful attempt', async () => {
         retrialNumber: 1
     });
 });
+test('keeps the same Event-Id on the first and third delivery attempts', async () => {
+    const { processor, requests } = createProcessor({
+        responseStatus: 500
+    });
 
+    const job = {
+        data: {
+            eventId: 7,
+            payload: { test: true },
+            endpointId: 9
+        }
+    };
+
+    // Invoke the same delivery processor three times to verify that the
+    // Event-Id stays stable. Retry scheduling itself belongs to SCRUM-18.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        await assert.rejects(
+            processor(job),
+            /received HTTP 500/
+        );
+    }
+
+    assert.equal(requests.length, 3);
+
+    const firstHeaders = requests[0][1].headers;
+    const thirdHeaders = requests[2][1].headers;
+
+    assert.equal(firstHeaders['event-id'], '7');
+    assert.equal(thirdHeaders['event-id'], '7');
+
+    assert.equal(
+        firstHeaders['event-id'],
+        thirdHeaders['event-id']
+    );
+
+    assert.equal(
+        firstHeaders['webhook-timestamp'],
+        '1700000000'
+    );
+
+    assert.equal(
+        thirdHeaders['webhook-timestamp'],
+        '1700000002'
+    );
+});
 test('records a non-2xx response as failed', async () => {
     const { processor, attempts } = createProcessor({ responseStatus: 500 });
 
