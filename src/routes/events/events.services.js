@@ -52,8 +52,7 @@ export async function createEvent(request, reply) {
         const deliveryRecords = await tx.insert(deliveries).values(
             consumerEndpoints.map((endpoint) => ({
                 eventId: createdEvent.id,
-                endpointId: endpoint.id,
-                status: 'enqueued'
+                endpointId: endpoint.id
             }))
         ).returning();
 
