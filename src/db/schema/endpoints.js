@@ -9,6 +9,7 @@ export const endpoints = pgTable("endpoints", (t) => ({
     label: t.varchar({length: 255}).notNull(),
     url: t.varchar({length: 255}).notNull().unique(),
     isActive: t.boolean("is_active").notNull().default(true),
+    deletedAt: t.timestamp("deleted_at"),
     consumerId: t.integer("consumer_id").references(() => consumers.id),
     signingKey: bytea("signing_key").notNull(),
 

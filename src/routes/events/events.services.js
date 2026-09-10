@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
+import { eq, and, isNull } from 'drizzle-orm';
 import { consumers } from '../../db/schema/consumers.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { InvalidRequestError } from '../../errors/InvalidRequestError.js';
@@ -22,7 +22,12 @@ export async function validatePayload(payload) {
     }
     
     // Validate that consumerID exists in DB
-    const consumer = await db.select().from(consumers).where(eq(consumers.id, consumerID)).limit(1);
+    const consumer = await db.select()
+        .from(consumers)
+        .where(and(
+            eq(consumers.id, consumerID),
+            isNull(consumers.deletedAt)
+        )).limit(1);
 
 
     if (consumer.length === 0) {

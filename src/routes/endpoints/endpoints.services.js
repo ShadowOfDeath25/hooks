@@ -43,6 +43,7 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
     if (consumerId !== undefined) {
         filters.push(eq(endpoints.consumerId, consumerId));
     }
+    filters.push(isNull(endpoints.deletedAt));
     if (!includeInactive) {
         filters.push(eq(endpoints.isActive, true));
     }

@@ -91,9 +91,14 @@ export async function deleteConsumerService(db, id) {
 		))
 		.returning(consumerFields);
 
-	if (!consumer) {
-		throw new NotFoundError('Consumer not found');
-	}
+		if (!consumer) {
+			throw new NotFoundError('Consumer not found');
+		}
 
-	return consumer;
+		await transaction.update(endpoints)
+			.set({ deletedAt, updatedAt: deletedAt })
+			.where(and(eq(endpoints.consumerId, id), isNull(endpoints.deletedAt)));
+
+		return consumer;
+	});
 }
