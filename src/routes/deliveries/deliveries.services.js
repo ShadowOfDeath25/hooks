@@ -1,4 +1,5 @@
 import { and, eq, max } from 'drizzle-orm';
+import { DelayedError } from 'bullmq';
 import { db } from '../../db/index.js';
 import { attempts } from '../../db/schema/attempts.js';
 import { deliveries } from '../../db/schema/deliveries.js';
@@ -118,9 +119,30 @@ function serializePayload(payload) {
     return body;
 }
 
+export async function enforceRateLimit(rateLimiter, job, token, endpointId, now = Date.now) {
+    if (!rateLimiter) return;
+
+    if (await rateLimiter.allow(endpointId)) return;
+
+    const delayMs =
+        rateLimiter.delayMs ??
+        (typeof rateLimiter.getDelayMs === 'function'
+            ? rateLimiter.getDelayMs()
+            : null) ??
+        rateLimiter.windowMs ??
+        1000;
+
+    if (typeof job?.moveToDelayed === 'function') {
+        await job.moveToDelayed(now() + delayMs, token);
+    }
+
+    throw new DelayedError();
+}
+
 export function createDeliveryProcessor({
     findContext,
     saveAttempt,
+    rateLimiter,
     sendRequest = fetch,
     now = Date.now,
     verifyAndDisable
@@ -129,7 +151,7 @@ export function createDeliveryProcessor({
         throw new Error('Delivery persistence functions are required');
     }
 
-    return async function processDelivery(job) {
+    return async function processDelivery(job, token) {
         validateJobData(job.data);
 
         const {eventId: eventId,payload,endpointId: endpointId} = job.data;
@@ -142,6 +164,9 @@ export function createDeliveryProcessor({
         }
 
         const startedAt = now();
+
+        await enforceRateLimit(rateLimiter, job, token, endpointId, now);
+
         let statusCode = 0;
         let requestError;
 
@@ -199,7 +224,7 @@ export function createDeliveryProcessor({
         });
 
         // 4. Update Endpoint Health (Only on Terminal Failure)
-        if (deliveryStatus === 'failed') {
+        if (deliveryStatus === 'failed' && typeof verifyAndDisable === 'function') {
             await verifyAndDisable(endpointId);
         }
 

@@ -6,6 +6,7 @@ import {
     findDeliveryContext,
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
+import { createWebhookRateLimiter } from './utils/rateLimiter.js';
 import { db } from './db/index.js';
 import {
     verifyAndAutoDisableEndpointService
@@ -42,10 +43,12 @@ const QUEUE_NAME = 'dummyQueue';
 
 export const dummyQueue = new Queue(QUEUE_NAME, { connection });
 
+export const rateLimiter = createWebhookRateLimiter({ connection });
 
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
     saveAttempt: recordDeliveryAttempt,
+    rateLimiter
     verifyAndDisable: (endpointId) => verifyAndAutoDisableEndpointService(db, endpointId, Number(process.env.WEBHOOK_MAX_FAILURES) || 5)
 });
 
@@ -75,6 +78,7 @@ worker.on('error', (err) => {
 const shutdown = async () => {
     console.log('[Worker] Shutting down gracefully...');
     await worker.close();
+    await rateLimiter.disconnect();
     process.exit(0);
 };
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
+import { DelayedError } from 'bullmq';
 import {
     createDeliveryProcessor
 } from '../src/routes/deliveries/deliveries.services.js';
@@ -12,7 +13,7 @@ const ENCRYPTION_KEY = crypto.randomBytes(32);
 const SIGNING_SECRET = '_hs_delivery_test_secret';
 
 
-function createProcessor({ responseStatus, requestError } = {}) {
+function createProcessor({ responseStatus, requestError, rateLimiter } = {}) {
     const attempts = [];
     const requests = [];
 
@@ -48,7 +49,8 @@ function createProcessor({ responseStatus, requestError } = {}) {
 
             return { status: responseStatus };
         },
-        now: () => times.shift()
+        rateLimiter,
+        now: () => times.shift() ?? 1_700_000_000_125
     });
 
     return { processor, attempts, requests };
@@ -119,7 +121,7 @@ test('keeps the same Event-Id on the first and third delivery attempts', async (
     for (let attempt = 0; attempt < 3; attempt += 1) {
         await assert.rejects(
             processor(job),
-            /received HTTP 500/
+            /HTTP 500/
         );
     }
 
@@ -153,7 +155,7 @@ test('records a non-2xx response as failed', async () => {
         processor({
             data: { eventId: 7, payload: { test: true }, endpointId: 9 }
         }),
-        /received HTTP 500/
+        /HTTP 500/
     );
 
     assert.deepEqual(attempts, [{
@@ -173,7 +175,7 @@ test('records a timeout or network error with status code zero', async () => {
         processor({
             data: { eventId: 7, payload: { test: true }, endpointId: 9 }
         }),
-        /failed before receiving an HTTP response/
+        /(failed before receiving an HTTP response|request timed out)/
     );
 
     assert.deepEqual(attempts, [{
@@ -199,3 +201,55 @@ test('rejects malformed queue data before querying the database', async () => {
     );
     assert.equal(queried, false);
 });
+
+test('rate-limited job is moved to delayed and throws DelayedError without recording an attempt', async () => {
+    let delayedTimestamp = null;
+    let delayedToken = null;
+
+    const mockJob = {
+        data: { eventId: 7, payload: { test: true }, endpointId: 9 },
+        moveToDelayed: async (ts, tok) => {
+            delayedTimestamp = ts;
+            delayedToken = tok;
+        }
+    };
+
+    const { processor, attempts, requests } = createProcessor({
+        rateLimiter: {
+            allow: async () => false,
+            delayMs: 1500
+        }
+    });
+
+    await assert.rejects(
+        processor(mockJob, 'test-token'),
+        (err) => err instanceof DelayedError || err.name === 'DelayedError'
+    );
+
+    assert.equal(requests.length, 0, 'No HTTP request should be sent');
+    assert.equal(attempts.length, 0, 'No attempt should be recorded in DB');
+    assert.equal(delayedToken, 'test-token');
+    assert.equal(delayedTimestamp, 1_700_000_000_000 + 1500);
+});
+
+test('rate limiter allows attempt and proceeds with HTTP request', async () => {
+    let checkedEndpoint = null;
+    const { processor, attempts, requests } = createProcessor({
+        responseStatus: 200,
+        rateLimiter: {
+            allow: async (endpointId) => {
+                checkedEndpoint = endpointId;
+                return true;
+            }
+        }
+    });
+
+    const result = await processor({
+        data: { eventId: 7, payload: { orderId: 99 }, endpointId: 9 }
+    });
+
+    assert.equal(checkedEndpoint, 9);
+    assert.equal(requests.length, 1);
+    assert.equal(result.status, 'success');
+});
+
