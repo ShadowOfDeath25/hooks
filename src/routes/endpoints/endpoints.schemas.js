@@ -34,7 +34,6 @@ export const createEndpointSchema = {
                 url: { type: 'string' },
                 consumerId: { type: 'integer', minimum: 1 },
                 isActive: { type: 'boolean' },
-                consecutiveFailures: { type: 'integer', minimum: 0 },
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true },
@@ -80,7 +79,6 @@ export const listEndpointsSchema = {
                             url: { type: 'string' },
                             consumerId: { type: 'integer', minimum: 1 },
                             isActive: { type: 'boolean' },
-                            consecutiveFailures: { type: 'integer', minimum: 0 },
                             createdAt: { type: 'string', format: 'date-time' },
                             updatedAt: { type: 'string', format: 'date-time', nullable: true },
                             deletedAt: { type: 'string', format: 'date-time', nullable: true }
@@ -130,7 +128,6 @@ export const updateEndpointSchema = {
                 url: { type: 'string' },
                 consumerId: { type: 'integer' },
                 isActive: { type: 'boolean' },
-                consecutiveFailures: { type: 'integer', minimum: 0 },
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true }
@@ -161,7 +158,6 @@ export const deleteEndpointSchema = {
                 url: { type: 'string' },
                 consumerId: { type: 'integer' },
                 isActive: { type: 'boolean' },
-                consecutiveFailures: { type: 'integer', minimum: 0 },
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true }
@@ -200,7 +196,6 @@ export const restoreEndpointSchema = {
                 url: { type: 'string' },
                 consumerId: { type: 'integer' },
                 isActive: { type: 'boolean' },
-                consecutiveFailures: { type: 'integer', minimum: 0 },
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true }

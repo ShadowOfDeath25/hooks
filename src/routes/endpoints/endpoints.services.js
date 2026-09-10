@@ -1,8 +1,7 @@
 import { endpoints } from '../../db/schema/endpoints.js';
 import { deliveries } from '../../db/schema/deliveries.js';
-import { attempts } from '../../db/schema/attempts.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
-import { eq, and, sql, isNull, desc } from 'drizzle-orm';
+import { eq, and, sql, isNull, desc, count } from 'drizzle-orm';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ConflictError } from '../../errors/ConflictError.js';
 
@@ -28,7 +27,6 @@ export async function createEndpointService(db, label, url, consumerId) {
         url: endpoints.url,
         consumerId: endpoints.consumerId,
         isActive: endpoints.isActive,
-        consecutiveFailures: endpoints.consecutiveFailures,
         createdAt: endpoints.createdAt,
         updatedAt: endpoints.updatedAt,
         deletedAt: endpoints.deletedAt
@@ -59,7 +57,6 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
             url: endpoints.url,
             consumerId: endpoints.consumerId,
             isActive: endpoints.isActive,
-            consecutiveFailures: endpoints.consecutiveFailures,
             createdAt: endpoints.createdAt,
             updatedAt: endpoints.updatedAt,
             deletedAt: endpoints.deletedAt
@@ -70,7 +67,7 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
         .limit(limit)
         .offset(offset),
         
-        db.select({ total: sql`count(*)`.mapWith(Number) })
+        db.select({ total: count() })
           .from(endpoints)
           .where(filterCondition)
     ]);
@@ -88,7 +85,6 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
     if (updateData.isActive !== undefined) {
         safeUpdateData.isActive = updateData.isActive;
         if (updateData.isActive === true) {
-            safeUpdateData.consecutiveFailures = 0;
         }
     }
     
@@ -110,7 +106,6 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
             url: endpoints.url,
             consumerId: endpoints.consumerId,
             isActive: endpoints.isActive,
-            consecutiveFailures: endpoints.consecutiveFailures,
             createdAt: endpoints.createdAt,
             updatedAt: endpoints.updatedAt,
             deletedAt: endpoints.deletedAt
@@ -144,7 +139,6 @@ export async function deleteEndpointService(db, id, consumerId) {
             url: endpoints.url,
             consumerId: endpoints.consumerId,
             isActive: endpoints.isActive,
-            consecutiveFailures: endpoints.consecutiveFailures,
             createdAt: endpoints.createdAt,
             updatedAt: endpoints.updatedAt,
             deletedAt: endpoints.deletedAt
@@ -158,24 +152,23 @@ export async function deleteEndpointService(db, id, consumerId) {
 }
 
 export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
-    // 1. Fetch the last X deliveries for this endpoint
-    const recentDeliveries = await db.select({
-        status: deliveries.status
-    })
-    .from(deliveries)
-    .where(eq(deliveries.endpointId, endpointId))
-    .orderBy(desc(deliveries.id))
-    .limit(threshold);
+    // 1. Subquery to get the last `threshold` deliveries for this endpoint
+    const recentDeliveries = db
+        .select({ status: deliveries.status })
+        .from(deliveries)
+        .where(eq(deliveries.endpointId, endpointId))
+        .orderBy(desc(deliveries.id))
+        .limit(threshold)
+        .as('recent_deliveries');
 
-    // 2. If we haven't even had `threshold` deliveries yet, it's safe.
-    if (recentDeliveries.length < threshold) {
-        return { isActive: true };
-    }
+    // 2. Count failed deliveries directly in the database query
+    const [{ failedCount }] = await db
+        .select({ failedCount: count() })
+        .from(recentDeliveries)
+        .where(eq(recentDeliveries.status, 'failed'));
 
-    // 3. Check if EVERY single one of the last `threshold` deliveries is terminally 'failed'
-    const allFailed = recentDeliveries.every(d => d.status === 'failed');
-
-    if (allFailed) {
+    // 3. Auto-disable if all of the last `threshold` deliveries are failed
+    if (failedCount >= threshold) {
         const [updated] = await db.update(endpoints)
             .set({ isActive: false })
             .where(eq(endpoints.id, endpointId))
@@ -210,7 +203,6 @@ export async function restoreEndpointService(db, id, consumerId) {
     const [restoredEndpoint] = await db.update(endpoints)
         .set({ 
             isActive: true, 
-            consecutiveFailures: 0,
             deletedAt: null,
             updatedAt: new Date() 
         })
@@ -221,7 +213,6 @@ export async function restoreEndpointService(db, id, consumerId) {
             url: endpoints.url,
             consumerId: endpoints.consumerId,
             isActive: endpoints.isActive,
-            consecutiveFailures: endpoints.consecutiveFailures,
             createdAt: endpoints.createdAt,
             updatedAt: endpoints.updatedAt,
             deletedAt: endpoints.deletedAt
