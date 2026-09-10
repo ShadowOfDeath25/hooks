@@ -20,5 +20,4 @@ async function consumerRoutes(fastify) {
 	fastify.delete('/:id', { ...authenticated, schema: deleteConsumerSchema }, deleteConsumerHandler);
 }
 
-export const autoPrefix = '/consumer';
 export default consumerRoutes;

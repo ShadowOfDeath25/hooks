@@ -1,5 +1,5 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
-import { consumers } from '../../db/schema/consumers.js';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import { activeConsumers, consumers } from '../../db/schema/consumers.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 
 const consumerFields = {
@@ -9,6 +9,13 @@ const consumerFields = {
 	deletedAt: consumers.deletedAt
 };
 
+const activeConsumerFields = {
+	id: activeConsumers.id,
+	name: activeConsumers.name,
+	createdAt: activeConsumers.createdAt,
+	deletedAt: activeConsumers.deletedAt
+};
+
 /**
  * Lists consumers that have not been soft-deleted.
  *
@@ -16,10 +23,9 @@ const consumerFields = {
  * @returns {Promise<Array<object>>} Active consumers ordered by creation date.
  */
 export async function listConsumersService(db) {
-	return db.select(consumerFields)
-		.from(consumers)
-		.where(isNull(consumers.deletedAt))
-		.orderBy(asc(consumers.createdAt));
+	return db.select(activeConsumerFields)
+		.from(activeConsumers)
+		.orderBy(asc(activeConsumers.createdAt));
 }
 
 /**
@@ -49,7 +55,13 @@ export async function createConsumerService(db, name) {
 export async function updateConsumerService(db, id, name) {
 	const [consumer] = await db.update(consumers)
 		.set({ name })
-		.where(and(eq(consumers.id, id), isNull(consumers.deletedAt)))
+		.where(and(
+			eq(consumers.id, id),
+			inArray(
+				consumers.id,
+				db.select({ id: activeConsumers.id }).from(activeConsumers)
+			)
+		))
 		.returning(consumerFields);
 
 	if (!consumer) {
@@ -70,7 +82,13 @@ export async function updateConsumerService(db, id, name) {
 export async function deleteConsumerService(db, id) {
 	const [consumer] = await db.update(consumers)
 		.set({ deletedAt: new Date() })
-		.where(and(eq(consumers.id, id), isNull(consumers.deletedAt)))
+		.where(and(
+			eq(consumers.id, id),
+			inArray(
+				consumers.id,
+				db.select({ id: activeConsumers.id }).from(activeConsumers)
+			)
+		))
 		.returning(consumerFields);
 
 	if (!consumer) {
