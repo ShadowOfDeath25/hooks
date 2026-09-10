@@ -6,8 +6,8 @@ import {
     findDeliveryContext,
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
-import { createWebhookRateLimiter } from './utils/rateLimiter.js';
-import { db } from './db/index.js';
+import {createWebhookRateLimiter} from './utils/rateLimiter.js';
+import {db} from './db/index.js';
 import {
     verifyAndAutoDisableEndpointService
 } from './routes/endpoints/endpoints.services.js';
@@ -21,6 +21,7 @@ if (!process.env.REDIS_URL) {
 const connection = new IORedis(process.env.REDIS_URL, {
     maxRetriesPerRequest: null,
 });
+connection.setMaxListeners(100);
 
 connection.on('error', (err) => {
     console.error('[Redis] Connection error:', err.message);
@@ -41,9 +42,9 @@ const customBackoffStrategy = (attemptsMade, type, err, job) => {
 
 const QUEUE_NAME = 'dummyQueue';
 
-export const dummyQueue = new Queue(QUEUE_NAME, { connection });
+export const dummyQueue = new Queue(QUEUE_NAME, {connection});
 
-export const rateLimiter = createWebhookRateLimiter({ connection });
+export const rateLimiter = createWebhookRateLimiter({connection});
 
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
@@ -55,7 +56,7 @@ const processDelivery = createDeliveryProcessor({
 const worker = new Worker(
     QUEUE_NAME,
     processDelivery,
-    { 
+    {
         connection,
         settings: {
             backoffStrategy: customBackoffStrategy

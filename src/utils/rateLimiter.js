@@ -26,7 +26,7 @@ export function getWebhookRateLimitConfig() {
         }
     }
 
-    return { limit, windowMs, delayMs };
+    return {limit, windowMs, delayMs};
 }
 
 /**
@@ -73,12 +73,20 @@ export class WebhookRateLimiter {
         let bottleneckConnection = null;
 
         if (options.connection) {
+            const previousMax = typeof options.connection.getMaxListeners === 'function'
+                ? options.connection.getMaxListeners()
+                : 10;
+
             if (options.connection instanceof Bottleneck.IORedisConnection) {
                 bottleneckConnection = options.connection;
             } else {
                 bottleneckConnection = new Bottleneck.IORedisConnection({
                     client: options.connection
                 });
+
+                if (typeof options.connection.setMaxListeners === 'function') {
+                    options.connection.setMaxListeners(Math.max(previousMax, 100));
+                }
             }
         } else if (this.datastore !== 'local') {
             const redisUrl = options.redisUrl || process.env.REDIS_URL;
@@ -195,7 +203,7 @@ export class WebhookRateLimiter {
      * @param {Object} [options={}]
      * @param {boolean} [options.closeConnection=false] - Whether to close the underlying connection and subscriber
      */
-    async disconnect(flush = false, { closeConnection = false } = {}) {
+    async disconnect(flush = false, {closeConnection = false} = {}) {
         await this.group.disconnect(flush);
         if (this.connection && (closeConnection || !this.sharedConnection)) {
             await this.connection.disconnect(flush);
