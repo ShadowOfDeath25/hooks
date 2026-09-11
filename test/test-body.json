@@ -1,0 +1,10 @@
+{
+    "consumerID": "1",
+    "eventData": {
+        "timestamp": "1788390809",
+        "type": "job.test",
+        "data": {
+            "message": "redis is down A!"
+        }
+    }
+}
