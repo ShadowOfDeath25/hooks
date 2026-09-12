@@ -104,9 +104,6 @@ export async function createEvent(request, reply) {
         throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
     }
 
-    // Removed the manual DB update to 'enqueued' here since the default is now null
-    // and we let the worker handle success/failed terminal states natively.
-
     return reply.code(201).send({
         success: true,
         message: 'Event received',
