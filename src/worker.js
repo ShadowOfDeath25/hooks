@@ -1,4 +1,5 @@
-import { Worker, Queue } from 'bullmq';
+import {QUEUE_NAME, workerConnection} from './queue/queue.js';
+import {Worker} from 'bullmq';
 import IORedis from 'ioredis';
 import * as dotenv from 'dotenv';
 import {
@@ -40,9 +41,6 @@ const customBackoffStrategy = (attemptsMade, type, err, job) => {
     return 1000;
 };
 
-const QUEUE_NAME = 'dummyQueue';
-
-export const dummyQueue = new Queue(QUEUE_NAME, {connection});
 
 export const rateLimiter = createWebhookRateLimiter({connection});
 
@@ -57,7 +55,7 @@ const worker = new Worker(
     QUEUE_NAME,
     processDelivery,
     {
-        connection,
+        connection: workerConnection,
         settings: {
             backoffStrategy: customBackoffStrategy
         }

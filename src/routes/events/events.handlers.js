@@ -1,6 +1,6 @@
 import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { dummyQueue } from '../../worker.js';
+import { deliveryQueue, QUEUE_NAME } from '../../queue/queue.js';
 import { events } from '../../db/schema/events.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 import { deliveries } from '../../db/schema/deliveries.js';
@@ -81,9 +81,9 @@ export async function createEvent(request, reply) {
 
     const MAX_ATTEMPTS = Number(process.env.RETRY_MAX_ATTEMPTS) || 5;
 
-    const jobs = await dummyQueue.addBulk( 
+    const jobs = await deliveryQueue.addBulk( 
         consumerEndpoints.map((endpoint) => ({
-            name: 'dummyQueue',
+            name: QUEUE_NAME,
             data:{
                 eventId,
                 endpointId: endpoint.id,
@@ -103,9 +103,6 @@ export async function createEvent(request, reply) {
         });
         throw new QueueError(`Failed to enqueue jobs for event ${eventId}`);
     }
-
-    // Removed the manual DB update to 'enqueued' here since the default is now null
-    // and we let the worker handle success/failed terminal states natively.
 
     return reply.code(201).send({
         success: true,
