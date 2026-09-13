@@ -5,3 +5,17 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+
+  worker:
+    build: .
+    command: sh -c "node ./src/worker.js"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
