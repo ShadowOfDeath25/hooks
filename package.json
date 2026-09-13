@@ -23,6 +23,7 @@
     "test:ratelimit": "node --test test/rateLimiter.test.js",
     "mock:dev": "nodemon mock/mock-receiver.js",
     "dev": "nodemon -L index.js",
+    "worker:dev": "nodemon -L ./src/worker.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
