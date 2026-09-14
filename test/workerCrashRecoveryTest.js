@@ -25,7 +25,9 @@ import { Queue, Worker } from 'bullmq';
 // Helpers
 // ---------------------------------------------------------------------------
 
-const REDIS_URL = 'redis://localhost:6379';
+const isDocker = process.env.REDIS_URL ? true : false; // basic fallback
+const defaultRedisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const REDIS_URL = process.env.TEST_REDIS_URL || defaultRedisUrl;
 const QUEUE_NAME = `crash-recovery-test-${Date.now()}`;
 
 /** Create a fresh Redis connection. */
