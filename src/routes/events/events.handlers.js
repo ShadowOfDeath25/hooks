@@ -115,6 +115,11 @@ export async function getEventDetails(request, reply) {
     const { eventId } = request.params;
 
     const event = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+    
+    if (event.length === 0) {
+        throw new NotFoundError(`Event with ID ${eventId} does not exist`);
+    }
+
     const eventDeliveries = await db.select().from(deliveries).where(eq(deliveries.eventId, eventId));
     const summary = { 
         total: eventDeliveries.length,
@@ -123,16 +128,7 @@ export async function getEventDetails(request, reply) {
         failed: eventDeliveries.filter(delivery => delivery.status === DeliveryStatus.FAILED).length
      }; 
 
-    console.log('[Events] Fetched event details:', {
-        eventId,
-        event: event,
-        deliveries: eventDeliveries,
-        summary: summary
-    });
-
-    if (event.length === 0) {
-        throw new NotFoundError(`Event with ID ${eventId} does not exist`);
-    }
+    request.log.info(`Fetched event details for eventId: ${eventId}`);
 
     return reply.code(200).send({
         success: true,
