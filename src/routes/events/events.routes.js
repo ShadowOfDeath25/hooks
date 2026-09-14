@@ -10,7 +10,16 @@ export default async function eventRoutes(fastify) {
     }, createEvent);
 
     fastify.get('/:eventId', {
-        preHandler: [fastify.authenticate]
+        preHandler: [fastify.authenticate],
+        schema: {
+            params: {
+                type: 'object',
+                properties: {
+                    eventId: { type: 'integer' }
+                },
+                required: ['eventId']
+            }
+        }
     }, getEventDetails);
 }
 

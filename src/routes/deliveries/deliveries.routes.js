@@ -3,7 +3,16 @@ import { listDeliveriesSchema } from './deliveries.schemas.js';
 
 export default async function deliveryRoutes(fastify) {
     fastify.get('/:deliveryId', {
-        preHandler: [fastify.authenticate]
+        preHandler: [fastify.authenticate],
+        schema: {
+            params: {
+                type: 'object',
+                properties: {
+                    deliveryId: { type: 'integer' }
+                },
+                required: ['deliveryId']
+            }
+        }
     }, getDeliveryDetails);
 
     fastify.get('/', {

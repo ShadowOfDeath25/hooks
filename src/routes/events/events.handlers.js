@@ -115,7 +115,7 @@ export async function getEventDetails(request, reply) {
     const { eventId } = request.params;
 
     const event = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
-    const eventDeliveries = await db.select().from(deliveries).where(eq(deliveries.eventId, parseInt(eventId)));
+    const eventDeliveries = await db.select().from(deliveries).where(eq(deliveries.eventId, eventId));
     const summary = { 
         total: eventDeliveries.length,
         pending: eventDeliveries.filter(delivery => delivery.status === DeliveryStatus.PENDING).length,
