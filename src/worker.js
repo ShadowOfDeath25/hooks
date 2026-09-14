@@ -1,4 +1,5 @@
-import { Worker } from 'bullmq';
+import {QUEUE_NAME, workerConnection} from './queue/queue.js';
+import {Worker} from 'bullmq';
 import IORedis from 'ioredis';
 import * as dotenv from 'dotenv';
 import {
@@ -6,103 +7,81 @@ import {
     findDeliveryContext,
     recordDeliveryAttempt
 } from './routes/deliveries/deliveries.services.js';
-import { dummyQueue, QUEUE_NAME, initQueue, getRedisUrl } from './queue.js';
+import {createWebhookRateLimiter} from './utils/rateLimiter.js';
+import {db} from './db/index.js';
+import {
+    verifyAndAutoDisableEndpointService
+} from './routes/endpoints/endpoints.services.js';
 
 dotenv.config();
 
-export { dummyQueue, QUEUE_NAME };
+if (!process.env.REDIS_URL) {
+    throw new Error('REDIS_URL is missing in environment variables');
+}
 
-export const workerConnection = new IORedis(getRedisUrl(), {
+const connection = new IORedis(process.env.REDIS_URL, {
     maxRetriesPerRequest: null,
 });
+connection.setMaxListeners(100);
 
-workerConnection.on('error', (err) => {
-    console.error('[Redis-Worker] Connection error:', err.message);
+connection.on('error', (err) => {
+    console.error('[Redis] Connection error:', err.message);
 });
 
-export function getWorkerOptions(overrides = {}) {
-    return {
-        connection: workerConnection,
-        lockDuration: Number(process.env.WORKER_LOCK_DURATION_MS) || 30000,
-        stalledInterval: Number(process.env.WORKER_STALLED_INTERVAL_MS) || 30000,
-        maxStalledCount: Number.MAX_SAFE_INTEGER,
-        ...overrides
-    };
-}
+const RETRY_BASE_DELAY = Number(process.env.RETRY_BASE_DELAY) || 1000;
+const RETRY_MULTIPLIER = Number(process.env.RETRY_MULTIPLIER) || 2;
+const RETRY_MAX_DELAY = Number(process.env.RETRY_MAX_DELAY) || 3600000; // Default to 1 hour
 
-export function createWorkerInstance(processor, options = {}) {
-    const workerOptions = getWorkerOptions(options);
-    const workerInstance = new Worker(QUEUE_NAME, processor, workerOptions);
+const customBackoffStrategy = (attemptsMade, type, err, job) => {
+    if (type === 'webhookExponential') {
+        const baseDelay = RETRY_BASE_DELAY * Math.pow(RETRY_MULTIPLIER, attemptsMade - 1);
+        const cappedDelay = Math.min(baseDelay, RETRY_MAX_DELAY);
+        return Math.floor(cappedDelay * (0.5 + Math.random() * 0.5)); // ±50% jitter
+    }
+    return 1000;
+};
 
-    workerInstance.on('completed', (job, returnValue) => {
-        console.log(`[Worker] Job ${job.id} completed! Result:`, returnValue);
-    });
 
-    workerInstance.on('failed', (job, err) => {
-        console.error(`[Worker] Job ${job?.id} failed with error:`, err.message);
-    });
-
-    workerInstance.on('error', (err) => {
-        console.error('[Worker] Internal error:', err.message);
-    });
-
-    workerInstance.on('stalled', (jobId) => {
-        console.warn(`[Worker] Job ${jobId} stalled and has been reclaimed by worker!`);
-    });
-
-    return workerInstance;
-}
+export const rateLimiter = createWebhookRateLimiter({connection});
 
 const processDelivery = createDeliveryProcessor({
     findContext: findDeliveryContext,
-    saveAttempt: recordDeliveryAttempt
+    saveAttempt: recordDeliveryAttempt,
+    rateLimiter,
+    verifyAndDisable: (endpointId) => verifyAndAutoDisableEndpointService(db, endpointId, Number(process.env.WEBHOOK_MAX_FAILURES) || 5)
 });
 
-export const worker = createWorkerInstance(processDelivery, { autorun: false });
-
-export async function initWorker(timeoutMs = 5000) {
-    if (!worker.isRunning()) {
-        worker.run();
+const worker = new Worker(
+    QUEUE_NAME,
+    processDelivery,
+    {
+        connection: workerConnection,
+        settings: {
+            backoffStrategy: customBackoffStrategy
+        }
     }
-    try {
-        await Promise.race([
-            worker.waitUntilReady(),
-            new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Worker readiness check timed out')), timeoutMs)
-            )
-        ]);
-        console.log(`[Worker] Worker initialized and ready for queue "${QUEUE_NAME}".`);
-        return worker;
-    } catch (err) {
-        console.error('[Worker] Failed to initialize worker:', err.message);
-        throw err;
-    }
-}
+);
 
-export const shutdown = async () => {
+worker.on('completed', (job, returnvalue) => {
+    console.log(`[Worker] Job ${job.id} completed! Result:`, returnvalue);
+});
+
+worker.on('failed', (job, err) => {
+    console.error(`[Worker] Job ${job.id} failed with error:`, err.message);
+});
+
+worker.on('error', (err) => {
+    console.error('[Worker] Internal error:', err.message);
+});
+
+const shutdown = async () => {
     console.log('[Worker] Shutting down gracefully...');
-    try {
-        await worker.close();
-        await workerConnection.quit();
-    } catch (err) {
-        console.error('[Worker] Error during shutdown:', err.message);
-    }
+    await worker.close();
+    await rateLimiter.disconnect();
     process.exit(0);
 };
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-
-if (process.argv[1] && process.argv[1].endsWith('worker.js')) {
-    (async () => {
-        try {
-            await initQueue();
-            await initWorker();
-        } catch (err) {
-            console.error('[Worker] Fatal error on startup:', err.message);
-            process.exit(1);
-        }
-    })();
-}
 
 export default worker;

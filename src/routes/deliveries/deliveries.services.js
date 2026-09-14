@@ -1,9 +1,39 @@
 import { and, eq, max } from 'drizzle-orm';
+import { DelayedError } from 'bullmq';
 import { db } from '../../db/index.js';
 import { attempts } from '../../db/schema/attempts.js';
 import { deliveries } from '../../db/schema/deliveries.js';
 import { endpoints } from '../../db/schema/endpoints.js';
 import { decryptSecret as decryptSecretKey, createWebhookSignature } from '../../utils/crypto.js';
+import { DeliveryClassification, DeliveryStatus } from '../../utils/enums.js';
+import { UnrecoverableError } from 'bullmq';
+
+/**
+ * Classifies an HTTP response into a DeliveryClassification
+ */
+function classifyDeliveryError(statusCode, requestError) {
+    // 1. Connection Errors & Timeouts (DNS failure, ECONNREFUSED, socket hang up)
+    if (requestError || !statusCode) return DeliveryClassification.RETRIABLE; 
+    
+    switch (true) {
+        // 2. Success
+        case statusCode >= 200 && statusCode < 300:
+            return DeliveryClassification.SUCCESS;
+            
+        // 3. Explicit Design Decisions & Client Timeouts
+        // 429: Respect rate limits. 408: Client timeouts.
+        // 5xx: Temporary infrastructure blips.
+        case statusCode === 429:
+        case statusCode === 408:
+        case statusCode >= 500 && statusCode < 600:
+            return DeliveryClassification.RETRIABLE;
+            
+        // 4. Permanent failures (410 Gone, and all other 4xx errors)
+        case statusCode === 410:
+        default:
+            return DeliveryClassification.TERMINAL;
+    }
+}
 
 export async function findDeliveryContext(eventId, endpointId) {
     const [context] = await db
@@ -89,17 +119,39 @@ function serializePayload(payload) {
     return body;
 }
 
+export async function enforceRateLimit(rateLimiter, job, token, endpointId, now = Date.now) {
+    if (!rateLimiter) return;
+
+    if (await rateLimiter.allow(endpointId)) return;
+
+    const delayMs =
+        rateLimiter.delayMs ??
+        (typeof rateLimiter.getDelayMs === 'function'
+            ? rateLimiter.getDelayMs()
+            : null) ??
+        rateLimiter.windowMs ??
+        1000;
+
+    if (typeof job?.moveToDelayed === 'function') {
+        await job.moveToDelayed(now() + delayMs, token);
+    }
+
+    throw new DelayedError();
+}
+
 export function createDeliveryProcessor({
     findContext,
     saveAttempt,
+    rateLimiter,
     sendRequest = fetch,
-    now = Date.now
+    now = Date.now,
+    verifyAndDisable
 } = {}) {
     if (typeof findContext !== 'function' || typeof saveAttempt !== 'function') {
         throw new Error('Delivery persistence functions are required');
     }
 
-    return async function processDelivery(job) {
+    return async function processDelivery(job, token) {
         validateJobData(job.data);
 
         const {eventId: eventId,payload,endpointId: endpointId} = job.data;
@@ -112,6 +164,9 @@ export function createDeliveryProcessor({
         }
 
         const startedAt = now();
+
+        await enforceRateLimit(rateLimiter, job, token, endpointId, now);
+
         let statusCode = 0;
         let requestError;
 
@@ -144,9 +199,27 @@ export function createDeliveryProcessor({
         }
 
         const duration = Math.max(0, now() - startedAt);
-        const deliveryStatus =
-            statusCode >= 200 && statusCode < 300 ? 'success' : 'failed';
+        // 1. Classify the result
+        const classification = classifyDeliveryError(statusCode, requestError);
 
+        // 2. Determine Database Status
+        const maxAttempts = job.opts?.attempts || 1;
+        const attemptsLeft = maxAttempts - ((job.attemptsMade || 0) + 1);
+        
+        let deliveryStatus;
+        switch (true) {
+            case classification === DeliveryClassification.SUCCESS:
+                deliveryStatus = DeliveryStatus.SUCCESS;
+                break;
+            case classification === DeliveryClassification.RETRIABLE && attemptsLeft > 0:
+                deliveryStatus = DeliveryStatus.PENDING; // Stays pending
+                break;
+            default:
+                deliveryStatus = DeliveryStatus.FAILED; // Exhausted OR Terminal
+                break;
+        }
+
+        // 3. Save to Database
         const retrialNumber = await saveAttempt({
             deliveryId: context.deliveryId,
             duration,
@@ -154,17 +227,31 @@ export function createDeliveryProcessor({
             deliveryStatus
         });
 
-        if (requestError) {
-            throw new Error(
-                `Delivery ${context.deliveryId} failed before receiving an HTTP response`,
-                { cause: requestError }
-            );
+        // 4. Update Endpoint Health (Only on Terminal Failure)
+        if (deliveryStatus === DeliveryStatus.FAILED) {
+            await verifyAndDisable(endpointId);
         }
 
-        if (deliveryStatus === 'failed') {
-            throw new Error(
-                `Delivery ${context.deliveryId} received HTTP ${statusCode}`
-            );
+        // 5. Trigger BullMQ Routing
+        switch (true) {
+            case classification === DeliveryClassification.RETRIABLE && attemptsLeft > 0: {
+                const errorMsg = requestError 
+                    ? `Delivery ${context.deliveryId} retrying (Network error: ${requestError.message})`
+                    : `Delivery ${context.deliveryId} retrying. HTTP ${statusCode}`;
+                throw new Error(errorMsg);
+            }
+            case classification === DeliveryClassification.TERMINAL: {
+                const errorMsg = requestError
+                    ? `Delivery ${context.deliveryId} terminal failure (Network error: ${requestError.message})`
+                    : `Delivery ${context.deliveryId} terminal failure. HTTP ${statusCode}`;
+                throw new UnrecoverableError(errorMsg);
+            }
+            case classification === DeliveryClassification.RETRIABLE && attemptsLeft <= 0: {
+                const errorMsg = requestError
+                    ? `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts (Network error: ${requestError.message})`
+                    : `Delivery ${context.deliveryId} retries exhausted after ${(job.attemptsMade || 0) + 1} attempts. HTTP ${statusCode}`;
+                throw new UnrecoverableError(errorMsg);
+            }
         }
 
         return {

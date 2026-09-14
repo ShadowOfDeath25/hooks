@@ -1,0 +1,86 @@
+{
+  "info": {
+    "name": "Hooks API Architecture Demo",
+    "description": "Postman collection to demonstrate the SCRUM-18 and SCRUM-21 architectural changes (Retry Engine, Auto-Disable, URL Reuse).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3001", "type": "string" },
+    { "key": "mock_url", "value": "http://mock-server:4000", "type": "string" },
+    { "key": "api_key", "value": "YOUR_API_KEY_HERE", "type": "string" },
+    { "key": "consumer_id", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. The Retry Engine (In-Flight Demo)",
+      "item": [
+        {
+          "name": "Step 1: Create Failing Endpoint (429)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "x-api-key", "value": "{{api_key}}" } ],
+            "url": { "raw": "{{base_url}}/consumers/{{consumer_id}}/endpoints", "host": ["{{base_url}}"], "path": ["consumers", "{{consumer_id}}", "endpoints"] },
+            "body": { "mode": "raw", "raw": "{\n  \"label\": \"Demo Retry Endpoint\",\n  \"url\": \"{{mock_url}}/status/429\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Step 2: Trigger Event",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "x-api-key", "value": "{{api_key}}" } ],
+            "url": { "raw": "{{base_url}}/events", "host": ["{{base_url}}"], "path": ["events"] },
+            "body": { "mode": "raw", "raw": "{\n  \"consumerID\": {{consumer_id}},\n  \"eventData\": {\n    \"type\": \"user.created\",\n    \"timestamp\": 1690000000,\n    \"data\": { \"message\": \"Simulating a temporary overload!\" }\n  }\n}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. The Circuit Breaker (Terminal Error)",
+      "item": [
+        {
+          "name": "Step 1: Create Broken Endpoint (410)",
+          "event": [
+            { "listen": "test", "script": { "exec": ["var jsonData = pm.response.json();", "pm.environment.set(\"broken_endpoint_id\", jsonData.newEndpoint.id);"] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "x-api-key", "value": "{{api_key}}" } ],
+            "url": { "raw": "{{base_url}}/consumers/{{consumer_id}}/endpoints", "host": ["{{base_url}}"], "path": ["consumers", "{{consumer_id}}", "endpoints"] },
+            "body": { "mode": "raw", "raw": "{\n  \"label\": \"Terminal Endpoint\",\n  \"url\": \"{{mock_url}}/status/410\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Step 2: Trigger Event",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "x-api-key", "value": "{{api_key}}" } ],
+            "url": { "raw": "{{base_url}}/events", "host": ["{{base_url}}"], "path": ["events"] },
+            "body": { "mode": "raw", "raw": "{\n  \"consumerID\": {{consumer_id}},\n  \"eventData\": {\n    \"type\": \"user.created\",\n    \"timestamp\": 1690000000,\n    \"data\": { \"message\": \"This will instantly disable the endpoint!\" }\n  }\n}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Architecture Fix (Soft Delete & URL Reuse)",
+      "item": [
+        {
+          "name": "Step 1: Delete Broken Endpoint",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "x-api-key", "value": "{{api_key}}" } ],
+            "url": { "raw": "{{base_url}}/consumers/{{consumer_id}}/endpoints/{{broken_endpoint_id}}", "host": ["{{base_url}}"], "path": ["consumers", "{{consumer_id}}", "endpoints", "{{broken_endpoint_id}}"] }
+          }
+        },
+        {
+          "name": "Step 2: Recreate Same URL",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "x-api-key", "value": "{{api_key}}" } ],
+            "url": { "raw": "{{base_url}}/consumers/{{consumer_id}}/endpoints", "host": ["{{base_url}}"], "path": ["consumers", "{{consumer_id}}", "endpoints"] },
+            "body": { "mode": "raw", "raw": "{\n  \"label\": \"Fixed Endpoint\",\n  \"url\": \"{{mock_url}}/status/410\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -56,7 +56,6 @@ fastify.addContentTypeParser(
   }
 );
 const attempts = new Map();
-const deliveryEventIds = new Map();
 const processedEvents = new Set();
 const requestLog = [];
 
@@ -69,49 +68,16 @@ function getProcessingKey(request) {
 
   return `${path}:${eventId}`;
 }
-function getDeliveryId(request) {
-  return (
-    request.headers["x-delivery-id"] ??
-    request.query?.delivery_id
-  );
-}
-function verifyStableEventId(request, reply, done) {
-  const deliveryId = getDeliveryId(request);
+
+function verifyEventId(request, reply, done) {
   const eventId = request.headers["event-id"];
 
-  if (!deliveryId) {
-    reply.code(400).send({
-      mock: true,
-      error: "X-Delivery-Id header is required"
-    });
-    return;
-  }
-
-  if (typeof eventId !== "string") {
+  if (typeof eventId !== "string" || !eventId.trim()) {
     reply.code(400).send({
       mock: true,
       error: "Event-Id header is required"
     });
-    return;
-  }
 
-  const existingEventId = deliveryEventIds.get(deliveryId);
-
-  // First attempt: remember which event belongs to this delivery
-  if (!existingEventId) {
-    deliveryEventIds.set(deliveryId, eventId);
-    done();
-    return;
-  }
-
-  // Retry: event ID MUST remain the same
-  if (existingEventId !== eventId) {
-    reply.code(409).send({
-      mock: true,
-      error: "Event-Id changed between delivery attempts",
-      expectedEventId: existingEventId,
-      receivedEventId: eventId
-    });
     return;
   }
 
@@ -138,7 +104,15 @@ function skipIfAlreadyProcessed(request, reply, done) {
 function getWebhookSecret(request) {
   const path = request.url.split("?")[0];
 
-  return webhookSecrets[path];
+  if (webhookSecrets[path]) {
+    return webhookSecrets[path];
+  }
+
+  if (/^\/status\/\d+$/.test(path)) {
+    return webhookSecrets["/status/:code"];
+  }
+
+  return undefined;
 }
 function verifyHmac(request, reply, done) {
   const webhookSecret = getWebhookSecret(request);
@@ -156,15 +130,15 @@ function verifyHmac(request, reply, done) {
   }
 
   if (
-  typeof eventId !== "string" ||
   typeof timestamp !== "string" ||
   typeof signatureHeader !== "string"
 ) {
   reply.code(401).send({
     mock: true,
     error:
-      "Event-Id, Webhook-Timestamp and Webhook-Signature headers are required"
+      "Webhook-Timestamp and Webhook-Signature headers are required"
   });
+
   return;
 }
 
@@ -257,7 +231,6 @@ function saveRequest(request, outcome, attempt = null) {
     time: new Date().toISOString(),
     method: request.method,
     url: request.url,
-    deliveryId: getDeliveryId(request) ?? null,
     eventId: request.headers["event-id"] ?? null,
     attempt,
     outcome,
@@ -281,9 +254,10 @@ fastify.post(
   "/success",
   {
     preHandler: [
-      verifyHmac,
-      skipIfAlreadyProcessed
-    ]
+  verifyEventId,
+  verifyHmac,
+  skipIfAlreadyProcessed
+]
   },
   async (request, reply) => {
     saveRequest(request, "success");
@@ -302,9 +276,10 @@ fastify.post(
   "/status/:code",
   {
   preHandler: [
-    verifyHmac,
-    skipIfAlreadyProcessed
-  ]
+  verifyEventId,
+  verifyHmac,
+  skipIfAlreadyProcessed
+]
 },
   async (request, reply) => {
     const code = Number(request.params.code);
@@ -338,9 +313,10 @@ fastify.post(
   "/timeout",
   {
   preHandler: [
-    verifyHmac,
-    skipIfAlreadyProcessed
-  ]
+  verifyEventId,
+  verifyHmac,
+  skipIfAlreadyProcessed
+]
 },
   async (request, reply) => {
     saveRequest(
@@ -364,18 +340,18 @@ fastify.post(
   "/fail-twice",
   {
     preHandler: [
+  verifyEventId,
   verifyHmac,
-  verifyStableEventId,
   skipIfAlreadyProcessed
 ]
   },
   async (request, reply) => {
-    const deliveryId = getDeliveryId(request);
+    const retryKey = getProcessingKey(request);
 
     const attempt =
-      (attempts.get(deliveryId) ?? 0) + 1;
+      (attempts.get(retryKey) ?? 0) + 1;
 
-    attempts.set(deliveryId, attempt);
+    attempts.set(retryKey, attempt);
 
     if (attempt <= 2) {
       saveRequest(
@@ -410,7 +386,6 @@ fastify.get("/_mock/log", async () => {
 fastify.get("/_mock/state", async () => {
   return {
     attempts: Object.fromEntries(attempts),
-    deliveryEventIds: Object.fromEntries(deliveryEventIds),
     processedEvents: Array.from(processedEvents)
   };
 });
@@ -418,7 +393,6 @@ fastify.get("/_mock/state", async () => {
 // Reset everything before starting another test
 fastify.post("/_mock/reset", async () => {
   attempts.clear();
-  deliveryEventIds.clear();
   processedEvents.clear();
   requestLog.length = 0;
 
