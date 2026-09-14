@@ -1,5 +1,5 @@
 import {generateApiKey} from "../routes/api-keys/apiKeys.service.js";
-import {ApiKeyLimitError} from "../errors/ApiLimitKeyError.js";
+import {ApiKeyLimitError} from "../errors/ApiKeyLimitError.js";
 import chalk from "chalk";
 
 async function main() {
