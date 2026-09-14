@@ -21,6 +21,7 @@
     "test:mock": "node --test test/mock-receiver.test.js",
     "test:delivery": "node --test test/delivery.test.js",
     "test:ratelimit": "node --test test/rateLimiter.test.js",
+    "test:crash-recovery": "node --test test/workerCrashRecoveryTest.js",
     "mock:dev": "nodemon mock/mock-receiver.js",
     "dev": "nodemon -L index.js",
     "worker:dev": "nodemon -L ./src/worker.js",

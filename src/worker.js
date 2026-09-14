@@ -56,6 +56,9 @@ const worker = new Worker(
     processDelivery,
     {
         connection: workerConnection,
+        lockDuration:    Number(process.env.WORKER_LOCK_DURATION)    || 30000,
+        stalledInterval: Number(process.env.WORKER_STALLED_INTERVAL) || 30000,
+        maxStalledCount: Number(process.env.WORKER_MAX_STALLED_COUNT) || 1,
         settings: {
             backoffStrategy: customBackoffStrategy
         }
