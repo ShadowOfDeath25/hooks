@@ -1,6 +1,8 @@
+const NAME_REGEX = String.raw`^\S(.*?\S)?$`;
+
 const consumerProperties = {
 	id: { type: 'integer' },
-	name: { type: 'string', minLength: 1, maxLength: 255 },
+	name: { type: 'string', minLength: 1, maxLength: 255, pattern: NAME_REGEX },
 	createdAt: { type: 'string', format: 'date-time' },
 	deletedAt: { type: 'string', format: 'date-time', nullable: true }
 };
@@ -17,7 +19,7 @@ export const createConsumerSchema = {
 		additionalProperties: false,
 		required: ['name'],
 		properties: {
-			name: { type: 'string', minLength: 1, maxLength: 255 }
+			name: { type: 'string', minLength: 1, maxLength: 255, pattern: NAME_REGEX }
 		}
 	},
 	response: {
@@ -48,7 +50,7 @@ export const updateConsumerSchema = {
 		additionalProperties: false,
 		required: ['name'],
 		properties: {
-			name: { type: 'string', minLength: 1, maxLength: 255 }
+			name: { type: 'string', minLength: 1, maxLength: 255, pattern: NAME_REGEX }
 		}
 	},
 	response: {

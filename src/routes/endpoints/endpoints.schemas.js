@@ -1,5 +1,5 @@
 const URL_REGEX = String.raw`^https?:\/\/(?:localhost|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)|\[[0-9a-fA-F:]+\]|(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?::(?:6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3}))?(?:[\/?#][^\s]*)?$`;
-const LABEL_REGEX = String.raw`^.*\S+.*$`;
+const LABEL_REGEX = String.raw`^\S(.*?\S)?$`;
 
 export const createEndpointSchema = {
     // Fastify uses AJV for built-in, high-performance input validation.
