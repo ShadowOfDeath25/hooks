@@ -1,4 +1,5 @@
 import { endpoints } from '../../db/schema/endpoints.js';
+import { consumers } from '../../db/schema/consumers.js';
 import { deliveries } from '../../db/schema/deliveries.js';
 import { generateWebhookSecret, encryptSecret } from '../../utils/crypto.js';
 import { eq, and, sql, isNull, desc, count } from 'drizzle-orm';
@@ -16,7 +17,40 @@ const endpointSelectFields = {
     deletedAt: endpoints.deletedAt
 };
 
+async function assertConsumerIsActive(db, consumerId) {
+    const [consumer] = await db.select({ id: consumers.id })
+        .from(consumers)
+        .where(
+            and(
+                eq(consumers.id, consumerId),
+                isNull(consumers.deletedAt)
+            )
+        )
+        .limit(1);
+
+    if (!consumer) {
+        throw new NotFoundError(`Consumer with ID ${consumerId} does not exist or has been deleted.`);
+    }
+}
+
 export async function createEndpointService(db, label, url, consumerId) {
+    await assertConsumerIsActive(db, consumerId);
+
+    // Enforce label uniqueness
+    const [existing] = await db.select({ id: endpoints.id })
+        .from(endpoints)
+        .where(
+            and(
+                eq(endpoints.consumerId, consumerId),
+                eq(endpoints.label, label),
+                isNull(endpoints.deletedAt)
+            )
+        )
+        .limit(1);
+
+    if (existing) {
+        throw new ConflictError('An active endpoint with this label already exists for this consumer.');
+    }
 
     // 1. Generate the plain text secret for the user
     const plainTextSecret = generateWebhookSecret();
@@ -38,6 +72,9 @@ export async function createEndpointService(db, label, url, consumerId) {
 }
 
 export async function getConsumerEndpointsService(db, consumerId, limit, offset, includeInactive = false, includeDeleted = false) {
+    if (consumerId !== undefined) {
+        await assertConsumerIsActive(db, consumerId);
+    }
     // Construct the where clause dynamically based on provided filters
     let filters = [];
     if (consumerId !== undefined) {
@@ -70,6 +107,25 @@ export async function getConsumerEndpointsService(db, consumerId, limit, offset,
 }
 
 export async function updateEndpointService(db, id, consumerId, updateData) {
+    await assertConsumerIsActive(db, consumerId);
+
+    if (updateData.label !== undefined) {
+        const [existing] = await db.select({ id: endpoints.id })
+            .from(endpoints)
+            .where(
+                and(
+                    eq(endpoints.consumerId, consumerId),
+                    eq(endpoints.label, updateData.label),
+                    isNull(endpoints.deletedAt)
+                )
+            )
+            .limit(1);
+
+        if (existing && existing.id !== Number(id)) {
+            throw new ConflictError('An active endpoint with this label already exists for this consumer.');
+        }
+    }
+
     // Explicitly whitelist fields to prevent Mass Assignment vulnerabilities.
     // Even though AJV schemas strip unknown fields, this guarantees that malicious
     // keys (like `consumerId` or `signingKey`) can never be injected into the DB update.
@@ -102,6 +158,7 @@ export async function updateEndpointService(db, id, consumerId, updateData) {
 }
 
 export async function deleteEndpointService(db, id, consumerId) {
+    await assertConsumerIsActive(db, consumerId);
     // Perform a soft-delete by setting deletedAt and isActive to false
     const [deletedEndpoint] = await db.update(endpoints)
         .set({ 
@@ -154,6 +211,7 @@ export async function verifyAndAutoDisableEndpointService(db, endpointId, thresh
 }
 
 export async function restoreEndpointService(db, id, consumerId) {
+    await assertConsumerIsActive(db, consumerId);
     // 1. Fetch the deleted endpoint to get its URL
     const [targetEndpoint] = await db.select({ url: endpoints.url, deletedAt: endpoints.deletedAt })
         .from(endpoints)
