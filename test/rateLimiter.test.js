@@ -12,16 +12,12 @@ import { encryptSecret } from '../src/utils/crypto.js';
 
 import fs from 'node:fs';
 
-const isDocker = fs.existsSync('/.dockerenv');
-const defaultRedisUrl = isDocker
-    ? (process.env.REDIS_URL || 'redis://redis:6379')
-    : 'redis://localhost:6379';
-const REDIS_URL = process.env.TEST_REDIS_URL || defaultRedisUrl;
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const SIGNING_SECRET = '_hs_ratelimit_test_secret';
 
 test.before(() => {
     process.env.REDIS_URL = REDIS_URL;
-    process.env.ENCRYPTION_KEY_V1 = crypto.randomBytes(32).toString('hex');
+    process.env.ENCRYPTION_KEY_V1 = '8292d2592759c8eb64384473634472f6205d8da244d6e291f5d90d6a074de141';
     process.env.WEBHOOK_TIMEOUT_MS = '5000';
     process.env.WEBHOOK_RATE_LIMIT = '10';
     process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS = '1000';
