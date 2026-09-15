@@ -15,7 +15,6 @@ export const endpoints = pgTable("endpoints", (t) => ({
 
     createdAt: t.timestamp("created_at").notNull().defaultNow(),
     updatedAt: t.timestamp("updated_at"),
-    deletedAt: t.timestamp("deleted_at"),
 }), (table) => [
     index("endpoints_consumer_id_fk_idx").on(table.consumerId),
     check(

@@ -12,6 +12,12 @@ import {relations} from './relations.js'
 const schema = {consumers, endpoints, events, deliveries, attempts, api_keys: apiKeys};
 
 const {POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_HOST, POSTGRES_PORT} = process.env
+const requiredVars = ['POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_DB', 'POSTGRES_HOST', 'POSTGRES_PORT'];
+for (const envVar of requiredVars) {
+    if (!process.env[envVar]) {
+        throw new Error(`Missing required Postgres environment variable: ${envVar}`);
+    }
+}
 const pool = new Pool({
     connectionString: `postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}`
 })

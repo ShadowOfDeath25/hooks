@@ -28,10 +28,14 @@ async function clear() {
 async function seed() {
     await clear();
 
+    const DEV_SECRET_1 = process.env.DEV_SECRET_1 || crypto.randomBytes(16).toString('hex');
+    const DEV_SECRET_2 = process.env.DEV_SECRET_2 || crypto.randomBytes(16).toString('hex');
+    const MOCK_BASE_URL = process.env.MOCK_BASE_URL || 'http://mock-server:4000';
+
     // --- api_keys (standalone) ---
     const insertedApiKeys = await db.insert(apiKeys).values([
-        { label: 'local-dev-key', hash: crypto.createHash('sha256').update('dev-secret-1').digest('hex') },
-        { label: 'ci-test-key', hash: crypto.createHash('sha256').update('dev-secret-2').digest('hex') },
+        { label: 'local-dev-key', hash: crypto.createHash('sha256').update(DEV_SECRET_1).digest('hex') },
+        { label: 'ci-test-key', hash: crypto.createHash('sha256').update(DEV_SECRET_2).digest('hex') },
     ]).returning();
     console.log(`Inserted ${insertedApiKeys.length} api_keys`);
 
@@ -56,12 +60,12 @@ async function seed() {
     ].map((path) => [path, generateWebhookSecret()]));
 
     const insertedEndpoints = await db.insert(endpoints).values([
-        { label: 'Mock success', url: 'http://mock-server:4000/success', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/success']) },
-        { label: 'Mock status 200', url: 'http://mock-server:4000/status/200', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/200']) },
-        { label: 'Mock status 400', url: 'http://mock-server:4000/status/400', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/400']) },
-        { label: 'Mock status 500', url: 'http://mock-server:4000/status/500', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/500']) },
-        { label: 'Mock timeout', url: 'http://mock-server:4000/timeout', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/timeout']) },
-        { label: 'Mock fail twice', url: 'http://mock-server:4000/fail-twice', consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/fail-twice']) },
+        { label: 'Mock success', url: `${MOCK_BASE_URL}/success`, consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/success']) },
+        { label: 'Mock status 200', url: `${MOCK_BASE_URL}/status/200`, consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/200']) },
+        { label: 'Mock status 400', url: `${MOCK_BASE_URL}/status/400`, consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/400']) },
+        { label: 'Mock status 500', url: `${MOCK_BASE_URL}/status/500`, consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/status/500']) },
+        { label: 'Mock timeout', url: `${MOCK_BASE_URL}/timeout`, consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/timeout']) },
+        { label: 'Mock fail twice', url: `${MOCK_BASE_URL}/fail-twice`, consumerId: mockServer.id, signingKey: createSeedSigningKey(mockSecrets['/fail-twice']) },
         { label: 'Acme primary', url: 'https://acme.example.com/webhooks/primary', consumerId: acme.id, signingKey: createSeedSigningKey() },
         { label: 'Acme backup', url: 'https://acme.example.com/webhooks/backup', consumerId: acme.id, isActive: false, signingKey: createSeedSigningKey() },
         { label: 'Globex main', url: 'https://hooks.globex.example.com/inbound', consumerId: globex.id, signingKey: createSeedSigningKey() },

@@ -17,20 +17,14 @@ const endpointSelectFields = {
 };
 
 export async function createEndpointService(db, label, url, consumerId) {
-
-    // 1. Generate the plain text secret for the user
     const plainTextSecret = generateWebhookSecret();
-    
-    // 2. Encrypt the secret so we can safely store it in the database
     const encryptedBuffer = encryptSecret(plainTextSecret);
     
-    // 3. Insert the record using Drizzle ORM
-    // We use `.returning()` so we don't have to query the DB a second time to get the created row.
     const [newEndpoint] = await db.insert(endpoints).values({
         label,
         url,
         consumerId,
-        signingKey: encryptedBuffer, // Store the bytea buffer, NOT the text!
+        signingKey: encryptedBuffer,
         isActive: true
     }).returning(endpointSelectFields);
 
@@ -126,7 +120,6 @@ export async function deleteEndpointService(db, id, consumerId) {
 }
 
 export async function verifyAndAutoDisableEndpointService(db, endpointId, threshold = Number(process.env.WEBHOOK_MAX_FAILURES) || 5) {
-    // 1. Subquery to get the last `threshold` deliveries for this endpoint
     const recentDeliveries = db
         .select({ status: deliveries.status })
         .from(deliveries)
@@ -135,13 +128,11 @@ export async function verifyAndAutoDisableEndpointService(db, endpointId, thresh
         .limit(threshold)
         .as('recent_deliveries');
 
-    // 2. Count failed deliveries directly in the database query
     const [{ failedCount }] = await db
         .select({ failedCount: count() })
         .from(recentDeliveries)
         .where(eq(recentDeliveries.status, 'failed'));
 
-    // 3. Auto-disable if all of the last `threshold` deliveries are failed
     if (failedCount >= threshold) {
         const [updated] = await db.update(endpoints)
             .set({ isActive: false })
@@ -154,7 +145,6 @@ export async function verifyAndAutoDisableEndpointService(db, endpointId, thresh
 }
 
 export async function restoreEndpointService(db, id, consumerId) {
-    // 1. Fetch the deleted endpoint to get its URL
     const [targetEndpoint] = await db.select({ url: endpoints.url, deletedAt: endpoints.deletedAt })
         .from(endpoints)
         .where(
