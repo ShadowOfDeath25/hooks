@@ -35,7 +35,6 @@
     "@fastify/autoload": "^6.5.0",
     "@fastify/multipart": "^10.1.1",
     "@fastify/rate-limit": "^10.0.0",
-    "bottleneck": "^2.19.5",
     "bullmq": "^5.81.4",
     "chalk": "^6.0.0",
     "dotenv": "^17.4.2",
@@ -43,7 +42,8 @@
     "fastify": "^5.12.1",
     "fastify-plugin": "^6.0.0",
     "ioredis": "^5.11.1",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "rate-limiter-flexible": "^11.2.0"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
