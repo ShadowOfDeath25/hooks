@@ -1,4 +1,4 @@
-import { createApiKeySchema, deleteApiKeySchema } from './apiKeys.schemas.js'
+import {listApiKeysSchema,createApiKeySchema, deleteApiKeySchema} from './apiKeys.schemas.js'
 import { listApiKeysHandler, createApiKeyHandler, deleteApiKeyHandler } from './apiKeys.handlers.js'
 
 /**
@@ -9,7 +9,7 @@ import { listApiKeysHandler, createApiKeyHandler, deleteApiKeyHandler } from './
  * @param {object} _opts - Plugin options (unused).
  */
 export default async function (fastify, _opts) {
-    fastify.get('/', { preHandler: [fastify.authenticate] }, listApiKeysHandler)
+    fastify.get('/' , { preHandler: [fastify.authenticate],schema: listApiKeysSchema }, listApiKeysHandler)
 
     fastify.post('/', { preHandler: [fastify.authenticate], schema: createApiKeySchema }, createApiKeyHandler)
 
