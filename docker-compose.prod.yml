@@ -1,21 +1,16 @@
 services:
   app:
+    command: sh -c "npm run db:push && node index.js"
     build:
       target: production
     restart: unless-stopped
     environment:
       NODE_ENV: production
+    volumes: []
 
   worker:
     build: .
     command: sh -c "node ./src/worker.js"
     env_file:
       - .env
-    volumes:
-      - .:/app
-      - /app/node_modules
-    depends_on:
-      redis:
-        condition: service_healthy
-      db:
-        condition: service_healthy
+    volumes: []
