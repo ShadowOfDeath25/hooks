@@ -10,6 +10,7 @@ import { DeliveryStatus } from '../utils/enums.js';
 import crypto from 'crypto';
 import fs from 'node:fs';
 import { encryptSecret, generateWebhookSecret } from '../utils/crypto.js';
+import { hashApiKey } from '../routes/api-keys/apiKeys.service.js';
 
 const createSeedSigningKey = (secret = generateWebhookSecret()) => encryptSecret(secret);
 
@@ -30,8 +31,8 @@ async function seed() {
 
     // --- api_keys (standalone) ---
     const insertedApiKeys = await db.insert(apiKeys).values([
-        { label: 'local-dev-key', hash: crypto.createHash('sha256').update('dev-secret-1').digest('hex') },
-        { label: 'ci-test-key', hash: crypto.createHash('sha256').update('dev-secret-2').digest('hex') },
+        { label: 'local-dev-key', hash: hashApiKey('dev-secret-1') },
+        { label: 'ci-test-key', hash: hashApiKey('dev-secret-2') },
     ]).returning();
     console.log(`Inserted ${insertedApiKeys.length} api_keys`);
 
@@ -71,10 +72,10 @@ async function seed() {
     const [, , , , , , acmePrimary, acmeBackup, globexMain, initechMain] = insertedEndpoints;
 
     fs.writeFileSync(
-        new URL('../../mock/secrets.json', import.meta.url),
+        new URL('../../examples/secrets.json', import.meta.url),
         `${JSON.stringify(mockSecrets, null, 4)}\n`
     );
-    console.log('Wrote mock endpoint secrets to mock/secrets.json');
+    console.log('Wrote mock endpoint secrets to examples/secrets.json');
 
     // --- events ---
     const insertedEvents = await db.insert(events).values([
