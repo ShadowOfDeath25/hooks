@@ -214,10 +214,10 @@ test('rate limiter: resolves immediately without waiting and keeps queue empty',
         assert.ok(duration1 < 200, `First call took ${duration1}ms`);
         assert.ok(duration2 < 200, `Second call took ${duration2}ms`);
 
-        // Assert that Bottleneck queue is empty and no jobs are pending
-        const underlyingLimiter = limiter.group.key(String(endpointId));
-        assert.equal(underlyingLimiter.queued(), 0, 'No jobs should remain in queue');
-        assert.equal(underlyingLimiter.empty(), true, 'Queue should be empty');
+        // Assert that rate limiter consumed the point and remaining is 0
+        const res = await limiter.limiter.get(String(endpointId));
+        assert.equal(res.consumedPoints, 2);
+        assert.equal(res.remainingPoints, 0);
     } finally {
         await limiter.disconnect(false, { closeConnection: true });
     }
@@ -238,14 +238,9 @@ test('rate limiter: fails closed and logs error on Redis/infrastructure error', 
 
     const endpointId = 'error-endpoint';
 
-    // Force an internal error in schedule to simulate Redis infrastructure failure
-    const originalKey = limiter.group.key.bind(limiter.group);
-    limiter.group.key = (id) => {
-        const lim = originalKey(id);
-        lim.schedule = async () => {
-            throw new Error('Connection to Redis lost');
-        };
-        return lim;
+    // Force an internal error in consume to simulate Redis infrastructure failure
+    limiter.limiter.consume = async () => {
+        throw new Error('Connection to Redis lost');
     };
 
     const allowed = await limiter.allow(endpointId);
@@ -405,7 +400,7 @@ test('delivery processor integration: fails closed on rate limiter error and doe
     });
 
     // Cause an error
-    mockRateLimiter.group.key = () => {
+    mockRateLimiter.limiter.consume = () => {
         throw new Error('Redis connection timed out');
     };
 
@@ -452,3 +447,32 @@ test('delivery processor integration: fails closed on rate limiter error and doe
     assert.match(loggedErrors[0], /Redis connection timed out/);
     assert.match(loggedErrors[0], /failing closed/);
 });
+
+test('rate limiter: times out and fails closed if rate limit check exceeds checkTimeoutMs', async () => {
+    const loggedErrors = [];
+    const mockLogger = {
+        error: (...args) => loggedErrors.push(args.join(' '))
+    };
+
+    const limiter = createWebhookRateLimiter({
+        limit: 2,
+        windowMs: 1000,
+        checkTimeoutMs: 50,
+        datastore: 'local',
+        logger: mockLogger
+    });
+
+    // Simulate a hung rate limit check
+    limiter.limiter.consume = () => new Promise(() => {});
+
+    const start = Date.now();
+    const allowed = await limiter.allow('timeout-endpoint');
+    const duration = Date.now() - start;
+
+    assert.equal(allowed, false);
+    assert.ok(duration >= 45 && duration < 500, `Timed out in expected range, took ${duration}ms`);
+    assert.equal(loggedErrors.length, 1);
+    assert.match(loggedErrors[0], /Rate limiter check timed out after 50ms/);
+    assert.match(loggedErrors[0], /failing closed/);
+});
+

@@ -228,7 +228,7 @@ export function createDeliveryProcessor({
         });
 
         // 4. Update Endpoint Health (Only on Terminal Failure)
-        if (deliveryStatus === DeliveryStatus.FAILED) {
+        if (deliveryStatus === DeliveryStatus.FAILED && typeof verifyAndDisable === 'function') {
             await verifyAndDisable(endpointId);
         }
 
