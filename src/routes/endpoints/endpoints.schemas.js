@@ -1,3 +1,4 @@
+import { errorResponses } from '../../docs/openapi.js';
 export const createEndpointSchema = {
     // Fastify uses AJV for built-in, high-performance input validation.
     params: {
@@ -15,12 +16,18 @@ export const createEndpointSchema = {
         properties: {
             label: { type: 'string', minLength: 1, maxLength: 255 },
             // Use a strict Regex pattern to guarantee it starts with http:// or https://
-            url: { 
-                type: 'string', 
+            url: {
+                type: 'string',
                 pattern: '^https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}(\\.[a-zA-Z0-9()]{1,6})?([-a-zA-Z0-9()@:%_+.~#?&/=]*)$',
-                maxLength: 255 
+                maxLength: 255
             }
-        }
+        },
+        examples: [
+            {
+                label: 'Payment webhook',
+                url: 'https://example.com/webhook'
+            }
+        ]
     },
     // The response schema acts as a strict whitelist, preventing accidental data leaks
     // and making JSON serialization significantly faster.
@@ -38,8 +45,26 @@ export const createEndpointSchema = {
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true },
                 secret: { type: 'string' }
-            }
-        }
+            },
+            examples: [
+                {
+                    id: 1,
+                    label: 'Payment webhook',
+                    url: 'https://example.com/webhook',
+                    consumerId: 1,
+                    isActive: true,
+                    createdAt: '2026-09-15T03:00:00.000Z',
+                    updatedAt: null,
+                    deletedAt: null,
+                    secret: 'example-signing-secret'
+                }
+            ]
+        },
+
+        400: errorResponses[400],
+        401: errorResponses[401],
+        409: errorResponses[409],
+        500: errorResponses[500]
     }
 };
 
@@ -86,8 +111,29 @@ export const listEndpointsSchema = {
                     }
                 },
                 total: { type: 'integer', minimum: 0 }
-            }
-        }
+            },
+            examples: [
+                {
+                    data: [
+                        {
+                            id: 1,
+                            label: 'Payment webhook',
+                            url: 'https://example.com/webhook',
+                            consumerId: 1,
+                            isActive: true,
+                            createdAt: '2026-09-15T03:00:00.000Z',
+                            updatedAt: null,
+                            deletedAt: null
+                        }
+                    ],
+                    total: 1
+                }
+            ]
+        },
+
+        400: errorResponses[400],
+        401: errorResponses[401],
+        500: errorResponses[500]
     }
 };
 
@@ -106,16 +152,23 @@ export const updateEndpointSchema = {
     body: {
         type: 'object',
         additionalProperties: false,
-        minProperties: 1, 
+        minProperties: 1,
         properties: {
             label: { type: 'string', minLength: 1, maxLength: 255 },
-            url: { 
-                type: 'string', 
+            url: {
+                type: 'string',
                 pattern: '^https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._+~#=]{1,255}(\\.[a-zA-Z0-9()]{1,6})?([-a-zA-Z0-9()@:%_+.~#?&/=]*)$',
-                maxLength: 255 
+                maxLength: 255
             },
             isActive: { type: 'boolean' }
-        }
+        },
+        examples: [
+            {
+                label: 'Updated payment webhook',
+                url: 'https://example.com/new-webhook',
+                isActive: true
+            }
+        ]
     },
     // Strict response whitelist to prevent data leaks (like signingKey)
     response: {
@@ -131,8 +184,26 @@ export const updateEndpointSchema = {
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true }
-            }
-        }
+            },
+            examples: [
+                {
+                    id: 1,
+                    label: 'Updated payment webhook',
+                    url: 'https://example.com/new-webhook',
+                    consumerId: 1,
+                    isActive: true,
+                    createdAt: '2026-09-15T03:00:00.000Z',
+                    updatedAt: '2026-09-15T04:00:00.000Z',
+                    deletedAt: null
+                }
+            ]
+        },
+
+        400: errorResponses[400],
+        401: errorResponses[401],
+        404: errorResponses[404],
+        409: errorResponses[409],
+        500: errorResponses[500]
     }
 };
 
@@ -161,8 +232,25 @@ export const deleteEndpointSchema = {
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true }
-            }
-        }
+            },
+            examples: [
+                {
+                    id: 1,
+                    label: 'Payment webhook',
+                    url: 'https://example.com/webhook',
+                    consumerId: 1,
+                    isActive: false,
+                    createdAt: '2026-09-15T03:00:00.000Z',
+                    updatedAt: '2026-09-15T04:00:00.000Z',
+                    deletedAt: '2026-09-15T04:00:00.000Z'
+                }
+            ]
+        },
+
+        400: errorResponses[400],
+        401: errorResponses[401],
+        404: errorResponses[404],
+        500: errorResponses[500]
     }
 };
 
@@ -172,7 +260,14 @@ export const putEndpointSchema = {
         type: 'object',
         additionalProperties: false,
         required: ['label', 'url', 'isActive'],
-        properties: updateEndpointSchema.body.properties
+        properties: updateEndpointSchema.body.properties,
+        examples: [
+            {
+                label: 'Payment webhook',
+                url: 'https://example.com/webhook',
+                isActive: true
+            }
+        ]
     }
 };
 
@@ -199,7 +294,25 @@ export const restoreEndpointSchema = {
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time', nullable: true },
                 deletedAt: { type: 'string', format: 'date-time', nullable: true }
-            }
-        }
+            },
+            examples: [
+                {
+                    id: 1,
+                    label: 'Payment webhook',
+                    url: 'https://example.com/webhook',
+                    consumerId: 1,
+                    isActive: true,
+                    createdAt: '2026-09-15T03:00:00.000Z',
+                    updatedAt: '2026-09-15T05:00:00.000Z',
+                    deletedAt: null
+                }
+            ]
+        },
+
+        400: errorResponses[400],
+        401: errorResponses[401],
+        404: errorResponses[404],
+        409: errorResponses[409],
+        500: errorResponses[500]
     }
 };
