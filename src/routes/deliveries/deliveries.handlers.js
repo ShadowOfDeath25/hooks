@@ -32,11 +32,11 @@ export async function getDeliveryDetails(request, reply) {
     const { deliveryId } = request.params;
     const [delivery] = await db.select(deliveryDetailsFields)
         .from(deliveries)
-        .where(eq(deliveries.id, parseInt(deliveryId)))
+        .where(eq(deliveries.id, deliveryId))
         .limit(1);
     const deliveryAttempts = await db.select(deliveryAttemptsFields)
         .from(attempts)
-        .where(eq(attempts.deliveryId, parseInt(deliveryId))); 
+        .where(eq(attempts.deliveryId, deliveryId)); 
 
     if (!delivery) {
         return reply.code(404).send({

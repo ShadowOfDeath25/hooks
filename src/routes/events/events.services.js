@@ -17,8 +17,9 @@ export async function validatePayload(payload) {
 
     // Validate eventData size (max 1MB)
     const eventDataSize = Buffer.byteLength(JSON.stringify(eventData), 'utf8');
-    if (eventDataSize > 1024 * 1024) {
-        throw new InvalidRequestError('Event data size exceeds 1MB limit');
+    const maxPayloadSize = Number(process.env.MAX_PAYLOAD_SIZE_BYTES) || 1024 * 1024;
+    if (eventDataSize > maxPayloadSize) {
+        throw new InvalidRequestError(`Event data size exceeds limit`);
     }
     
     // Validate that consumerID exists in DB

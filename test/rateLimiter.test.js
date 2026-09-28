@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import test from 'node:test';
 import IORedis from 'ioredis';
 import { DelayedError } from 'bullmq';
@@ -11,11 +12,7 @@ import { encryptSecret } from '../src/utils/crypto.js';
 
 import fs from 'node:fs';
 
-const isDocker = fs.existsSync('/.dockerenv');
-const defaultRedisUrl = isDocker
-    ? (process.env.REDIS_URL || 'redis://redis:6379')
-    : 'redis://localhost:6379';
-const REDIS_URL = process.env.TEST_REDIS_URL || defaultRedisUrl;
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const SIGNING_SECRET = '_hs_ratelimit_test_secret';
 
 test.before(() => {

@@ -34,3 +34,13 @@ export const listDeliveriesSchema = {
 		}
 	}
 };
+
+export const getDeliveryDetailsSchema = {
+	params: {
+		type: 'object',
+		properties: {
+			deliveryId: { type: 'integer' }
+		},
+		required: ['deliveryId']
+	}
+};

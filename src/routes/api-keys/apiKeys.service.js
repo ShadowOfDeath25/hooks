@@ -3,7 +3,7 @@ import 'dotenv/config'
 import {db} from '../../db/index.js'
 import {apiKeys} from "../../db/schema/apiKeys.js";
 import {count, eq} from "drizzle-orm";
-import {ApiKeyLimitError} from "../../errors/ApiLimitKeyError.js";
+import {ApiKeyLimitError} from "../../errors/ApiKeyLimitError.js";
 
 
 /**

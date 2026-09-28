@@ -25,4 +25,18 @@ export const enqueuedEventSchema = {
         payload: eventPayloadSchema,
         endpointId: { type: 'number', minimum: 1 }
     }
-}
+};
+
+export const createEventSchema = {
+    body: eventBodySchema
+};
+
+export const getEventDetailsSchema = {
+    params: {
+        type: 'object',
+        properties: {
+            eventId: { type: 'integer' }
+        },
+        required: ['eventId']
+    }
+};
