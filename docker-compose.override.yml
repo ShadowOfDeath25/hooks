@@ -11,12 +11,38 @@ services:
 
   mock-server:
     build:
+      context: .
       target: dev
-    command: npm run mock:dev
+    command: npm run example:receiver:dev
+    env_file:
+      .env
     environment:
       MOCK_PORT: "${MOCK_PORT:-4000}"
       MOCK_TIMEOUT_MS: "${MOCK_TIMEOUT_MS:-10000}"
-      MOCK_SECRETS_PATH: "${MOCK_SECRETS_PATH:-./mock/secrets.json}"
+      MOCK_SECRETS_PATH: "${MOCK_SECRETS_PATH:-./examples/secrets.json}"
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+
+  publisher:
+    build:
+      context: .
+      target: dev
+    command: npm run example:publisher
+    env_file:
+      .env
+    environment:
+      HOOKS_API_URL: "${HOOKS_API_URL:-http://app:3000}"
+      HOOKS_API_KEY: "${HOOKS_API_KEY:-dev-secret-1}"
+      EXAMPLE_CONSUMER_NAME: "${EXAMPLE_CONSUMER_NAME:-Mock server}"
+      EXAMPLE_EVENT_TYPE: "${EXAMPLE_EVENT_TYPE:-example.ping}"
+      EXAMPLE_PUBLISH_INTERVAL_MS: "${EXAMPLE_PUBLISH_INTERVAL_MS:-5000}"
+      EXAMPLE_EVENT_COUNT: "${EXAMPLE_EVENT_COUNT:-0}"
+    depends_on:
+      - app
+      - mock-server
     volumes:
       - .:/app
       - app_node_modules:/app/node_modules

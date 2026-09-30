@@ -86,7 +86,7 @@ test.before(async () => {
     "utf8"
   );
 
-  server = spawn(process.execPath, ["mock/mock-receiver.js"], {
+  server = spawn(process.execPath, ["examples/mock-receiver.js"], {
     env: {
       ...process.env,
       MOCK_PORT: "4100",
